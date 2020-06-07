@@ -1,0 +1,12 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build",
+			"type": "shell",
+			"command": "cat src/**/*.js | sc build/script.user.js ; cat src/main.js | Add-Content -Path build/script.user.js ; cat build/script.user.js | clip"
+		}
+	]
+}
