@@ -17,7 +17,8 @@ To mark a tweet as the last read; open the popup menu of the Tweet (chevron icon
 # Development details
 
 This is the first time I'm using VSCode.
-I've setup a task that uses Powershell commands to concatenate all the javascript files from `src` into `build/script.user.js`.
+I've setup a Build task that uses Powershell commands to concatenate all the javascript files from `src` into `build/script.user.js`.
+It then copies this all into the clipboard so I can easily paste it in the GreaseMonkey editor.
 
 I've also installed the VSCode extension [Trigger Task on Save](https://marketplace.visualstudio.com/items?itemName=Gruntfuggly.triggertaskonsave) with the following addintion to VSCode's `settings.json`:
 ```json

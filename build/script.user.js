@@ -578,14 +578,22 @@ class Settings {
 
 /*
 TODO:
-- use AwaitSelectorMatchObserver for new Tweet elements
+- Use AwaitSelectorMatchObserver for new Tweet elements
+- Update marked tweets when setting last read tweet.
+- Store last marked read tweet based on url. This to support lists.
+   - Script doesn't load on Notifications yet.
+- Build fix: so that this userscript header bit is also at the top of script.user.js.
+- Check all variable names and decide whether I want snake_case or camelcase.
+- Check all function doc and put variable name after type definition (now it is nicely highlighted in VSCode).
+- Separate styling / add to settings?
  */
 
 console.log('start script');
 
+/**
+ * Base class.
+ */
 class TwitterMarkLastRead {
-
-
 	constructor() {
 		deb.debug('TwitterMarkLastRead::constructor');
 
@@ -598,7 +606,6 @@ class TwitterMarkLastRead {
 			'lastread': false,
 		});
 		this.lastReadId = this.settings.get('lastread') || false;
-		//new BigInt('1267924105090740227'); //'1162684552193724417'); //'1162675773683195905',); //'1162629769831358466');
 		/* @var {Tweet} Tweet the popup menu was last opened for. */
 		this.popupActiveTweet;
 
@@ -676,22 +683,22 @@ class TwitterMarkLastRead {
 		deb.debug('TwitterMarkLastRead::handleTweet', tweetElement);
 		tweetElement.setAttribute('data-tmlr-debug', ''); //@debug
 
-	// Not when in modal
-	/*
-	if (tweetElement.closest('[aria-modal]')) {
+		// Not when in modal
+		/*
+		if (tweetElement.closest('[aria-modal]')) {
 			deb.debug('TwitterMarkLastRead::handleTweet::isInModal', tweetElement);
-	  return;
-	}
-	*/
+			return;
+		}
+		*/
 
 		const tweet = new Tweet(this, tweetElement);
-	tweet.init();
+		tweet.init();
 	}
 
 	addStyling() {
 		const style = document.createElement('style');
 		style.setAttribute('type', 'text/css');
-	// @todo dark / white theme; body has dynamic background-color style.
+		// @todo dark / white theme; body has dynamic background-color style.
 		style.textContent = `
 			[data-tmlr-read] {
 				border-left: 3px solid #90ff7c;
@@ -705,13 +712,13 @@ class TwitterMarkLastRead {
 			[data-tmlr-debug] {
 				border-right: 3px solid #ff907c;
 			}
-	  [data-tmlr-menuitem] {
-		color: white;
-		padding: 15px;
-		font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
-		font-size: 15px;
-		cursor: pointer;
-	  }
+			[data-tmlr-menuitem] {
+				color: white;
+				padding: 15px;
+				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
+				font-size: 15px;
+				cursor: pointer;
+			}
 		`;
 
 		document.body.appendChild(style);
@@ -786,24 +793,27 @@ class SettingsUI {
 }
 
 
-
+// Setup debug output with filter.
 const deb = new Debug(true, /Settings|Tweet::popupHook|setLastReadId/);
 
-// "Latest Tweets" header loads slowly.
-// TODO : change this
+/*
+ * We only want to load when the timeline is ordered on latest tweets
+ * But the "Latest Tweets" header loads slowly. So await DOM changes.
+ * TODO : change this
+ */
 let tmlr;
 const await_selector_tmlr = new AwaitSelectorMatchObserver(
 	'h2[role="heading"]',
 	(element) => {
 		if ([... document.querySelectorAll('h2')].filter((h) => {
-					return h.textContent.indexOf('Latest Tweets') >= 0;
-				}).length > 0) {
+			return h.textContent.indexOf('Latest Tweets') >= 0;
+		}).length > 0) {
 
 			try {
-			await_selector_tmlr.disconnect();
+				await_selector_tmlr.disconnect();
 				tmlr = new TwitterMarkLastRead();
 			} catch (e) {
-			console.error('error', e);
+				console.error('error', e);
 			}
 		}
 	}
