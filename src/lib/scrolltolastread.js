@@ -4,7 +4,7 @@
  */
 class ScrollToLastRead {
 	constructor() {
-		this.running = false;
+		this.is_running = false;
 		/* Delay to continue after first tweet is loaded. */
 		this.waitDelay = 500;
 
@@ -19,6 +19,9 @@ class ScrollToLastRead {
 		/* After this many times unchanged we should stop scrolling down. */
 		this.lastHeighRepeatLimit = 10;
 
+		/* Attribute to set to body when we're scrolling. */
+		this.body_running_attribute = 'data-scrolltolastread-running';
+
 		// Add listener for new created tweets. This relights the fuse.
 		this.newTweetListener = document.addEventListener(
 			Events.NEW_TWEET,
@@ -29,15 +32,16 @@ class ScrollToLastRead {
 				this.tweetAddedHandler(event);
 			}
 		)
-
-		this.start();
 	}
 
 	/**
-	 * Start scrolling.
+	 * Start scrolling if not yet running.
 	 */
 	start() {
-		deb.debug('ScrollToLastRead::start');
+		deb.debug('ScrollToLastRead::start', this.is_running);
+		if (this.is_running) {
+			return;
+		}
 
 		// First try to find a currently loaded read tweet.
 		const last_read_tweet = document.querySelector('[data-tmlr-read]')
@@ -46,7 +50,7 @@ class ScrollToLastRead {
 			return;
 		}
 
-		this.running = true;
+		this.setRunning(true);
 		this.lastHeighRepeat = 0;
 
 		this.fuse = new Fuse(
@@ -59,10 +63,24 @@ class ScrollToLastRead {
 	}
 
 	/**
+	 *
+	 * @param {bool} is_running What state to set internal running to.
+	 */
+	setRunning(is_running) {
+		this.is_running = is_running;
+
+		if (is_running) {
+			document.body.setAttribute(this.body_running_attribute, '');
+		} else {
+			document.body.removeAttribute(this.body_running_attribute, '');
+		}
+	}
+
+	/**
 	 * Stop scrolldown activity.
 	 */
 	stop() {
-		this.running = false;
+		this.setRunning(false);
 		this.fuse.stop();
 		document.removeEventListener(Events.NEW_TWEET, this.tweetAddedHandler);
 		deb.debug('ScrollToLastRead::stopped');
@@ -74,7 +92,7 @@ class ScrollToLastRead {
 	 */
 	tweetAddedHandler(event) {
 		// If removing event handler failed.
-		if (!this.running) {
+		if (!this.is_running) {
 			return;
 		}
 
@@ -127,7 +145,7 @@ class ScrollToLastRead {
 	 * Automatically stops attempts to scroll when no more content is loaded.
 	 */
 	scrollToEnd() {
-		if (!this.running) {
+		if (!this.is_running) {
 			return;
 		}
 

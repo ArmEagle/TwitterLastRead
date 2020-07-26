@@ -24,7 +24,7 @@ Events.NEW_TWEET = 'new_tweet';
  */
 class ScrollToLastRead {
 	constructor() {
-		this.running = false;
+		this.is_running = false;
 		/* Delay to continue after first tweet is loaded. */
 		this.waitDelay = 500;
 
@@ -39,6 +39,9 @@ class ScrollToLastRead {
 		/* After this many times unchanged we should stop scrolling down. */
 		this.lastHeighRepeatLimit = 10;
 
+		/* Attribute to set to body when we're scrolling. */
+		this.body_running_attribute = 'data-scrolltolastread-running';
+
 		// Add listener for new created tweets. This relights the fuse.
 		this.newTweetListener = document.addEventListener(
 			Events.NEW_TWEET,
@@ -49,15 +52,16 @@ class ScrollToLastRead {
 				this.tweetAddedHandler(event);
 			}
 		)
-
-		this.start();
 	}
 
 	/**
-	 * Start scrolling.
+	 * Start scrolling if not yet running.
 	 */
 	start() {
-		deb.debug('ScrollToLastRead::start');
+		deb.debug('ScrollToLastRead::start', this.is_running);
+		if (this.is_running) {
+			return;
+		}
 
 		// First try to find a currently loaded read tweet.
 		const last_read_tweet = document.querySelector('[data-tmlr-read]')
@@ -66,7 +70,7 @@ class ScrollToLastRead {
 			return;
 		}
 
-		this.running = true;
+		this.setRunning(true);
 		this.lastHeighRepeat = 0;
 
 		this.fuse = new Fuse(
@@ -79,10 +83,24 @@ class ScrollToLastRead {
 	}
 
 	/**
+	 *
+	 * @param {bool} is_running What state to set internal running to.
+	 */
+	setRunning(is_running) {
+		this.is_running = is_running;
+
+		if (is_running) {
+			document.body.setAttribute(this.body_running_attribute, '');
+		} else {
+			document.body.removeAttribute(this.body_running_attribute, '');
+		}
+	}
+
+	/**
 	 * Stop scrolldown activity.
 	 */
 	stop() {
-		this.running = false;
+		this.setRunning(false);
 		this.fuse.stop();
 		document.removeEventListener(Events.NEW_TWEET, this.tweetAddedHandler);
 		deb.debug('ScrollToLastRead::stopped');
@@ -94,7 +112,7 @@ class ScrollToLastRead {
 	 */
 	tweetAddedHandler(event) {
 		// If removing event handler failed.
-		if (!this.running) {
+		if (!this.is_running) {
 			return;
 		}
 
@@ -147,7 +165,7 @@ class ScrollToLastRead {
 	 * Automatically stops attempts to scroll when no more content is loaded.
 	 */
 	scrollToEnd() {
-		if (!this.running) {
+		if (!this.is_running) {
 			return;
 		}
 
@@ -920,6 +938,7 @@ class TwitterMarkLastRead {
 			'lastread': false,
 		});
 		this.lastReadId = this.settings.get('lastread') || false;
+		this.scrollToLastRead = new ScrollToLastRead();
 
 		/** @property {Map.<BigInt, Tweet>} Map with loaded Tweet objects. **/
 		this.tweets = new Map();
@@ -931,7 +950,6 @@ class TwitterMarkLastRead {
 		this.timeline_container = document.querySelector('[aria-label="Timeline: Search timeline"]');
 
 		this.addStyling();
-		this.addScrolldownButton();
 		this.setupMutationObservers();
 	}
 
@@ -961,6 +979,7 @@ class TwitterMarkLastRead {
 	 */
 	handleAddedNode(element) {
 		deb.debug('TwitterMarkLastRead::handleAddedNode', element);
+		this.addScrolldownButton();
 
 		const tweetElements = this.findTweetElements(element);
 		if (!tweetElements || !tweetElements.length) {
@@ -1087,6 +1106,10 @@ class TwitterMarkLastRead {
 				border-style: solid;
 				align-items: center;
 			}
+			[data-scrolltolastread-running] [data-tmlr-scrolldown-button] {
+				opacity: 0.5;
+				cursor: wait;
+			}
 			[data-tmlr-scrolldown-button]:hover {
 				background-color: rgba(69, 121, 242, 0.1);
 			}
@@ -1176,9 +1199,16 @@ class TwitterMarkLastRead {
 	 * Adds the scrolldown button to the header.
 	 */
 	addScrolldownButton() {
+		const scrolldown_attribute = 'data-tmlr-scrolldown-button';
+
+		// No duplicates.
+		if (document.querySelector('[' + scrolldown_attribute + ']')) {
+			return;
+		}
+
 		const header = this.getLatestTweetsHeader();
 		if (!header) {
-			throw new TweetException('TwitterMarkLastRead::addScrolldownButton: Could not find "Latest Tweets" header!');
+			deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find "Latest Tweets" header!');
 		}
 
 		// Go up into the DOM tree until we can find a [role="button"].
@@ -1186,7 +1216,7 @@ class TwitterMarkLastRead {
 		while (!walk.querySelector('[role="button"]')) {
 			walk = walk.parentNode;
 			if (walk.tagName.toLowerCase() === 'body') {
-				throw new TweetException('TwitterMarkLastRead::addScrolldownButton: Could not find button in header!');
+				deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find button in header!');
 			}
 		}
 		// Then the parent of that button element is our target.
@@ -1198,7 +1228,7 @@ class TwitterMarkLastRead {
 
 		const wrapper = document.createElement('div');
 		wrapper.setAttribute('role', 'button');
-		wrapper.setAttribute('data-tmlr-scrolldown-button', '');
+		wrapper.setAttribute(scrolldown_attribute, '');
 		wrapper.setAttribute('title', 'Twitter Mark Last Read: Scroll to last read');
 		const inner = document.createElement('div');
 		inner.setAttribute('data-tmlr-inner', '');
@@ -1220,7 +1250,7 @@ class TwitterMarkLastRead {
 
 		wrapper.addEventListener('click', (event) => {
 			event.preventDefault();
-			new ScrollToLastRead();
+			this.scrollToLastRead.start();
 		});
 
 		target.insertBefore(wrapper, other_button);

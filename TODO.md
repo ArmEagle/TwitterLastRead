@@ -1,7 +1,4 @@
 # TODO
-- "Scroll to last Read" doesn't work great.
-	- Button disappears when switching views; use MutationObserver to add.
-	- Prevent double clicks.
 - Store last marked read tweet based on url. This to support lists.
 	- Script doesn't load on Notifications yet.
 - Support threads in main timeline correctly.

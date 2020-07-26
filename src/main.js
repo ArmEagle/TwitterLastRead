@@ -15,6 +15,7 @@ class TwitterMarkLastRead {
 			'lastread': false,
 		});
 		this.lastReadId = this.settings.get('lastread') || false;
+		this.scrollToLastRead = new ScrollToLastRead();
 
 		/** @property {Map.<BigInt, Tweet>} Map with loaded Tweet objects. **/
 		this.tweets = new Map();
@@ -26,7 +27,6 @@ class TwitterMarkLastRead {
 		this.timeline_container = document.querySelector('[aria-label="Timeline: Search timeline"]');
 
 		this.addStyling();
-		this.addScrolldownButton();
 		this.setupMutationObservers();
 	}
 
@@ -56,6 +56,7 @@ class TwitterMarkLastRead {
 	 */
 	handleAddedNode(element) {
 		deb.debug('TwitterMarkLastRead::handleAddedNode', element);
+		this.addScrolldownButton();
 
 		const tweetElements = this.findTweetElements(element);
 		if (!tweetElements || !tweetElements.length) {
@@ -182,6 +183,10 @@ class TwitterMarkLastRead {
 				border-style: solid;
 				align-items: center;
 			}
+			[data-scrolltolastread-running] [data-tmlr-scrolldown-button] {
+				opacity: 0.5;
+				cursor: wait;
+			}
 			[data-tmlr-scrolldown-button]:hover {
 				background-color: rgba(69, 121, 242, 0.1);
 			}
@@ -271,9 +276,16 @@ class TwitterMarkLastRead {
 	 * Adds the scrolldown button to the header.
 	 */
 	addScrolldownButton() {
+		const scrolldown_attribute = 'data-tmlr-scrolldown-button';
+
+		// No duplicates.
+		if (document.querySelector('[' + scrolldown_attribute + ']')) {
+			return;
+		}
+
 		const header = this.getLatestTweetsHeader();
 		if (!header) {
-			throw new TweetException('TwitterMarkLastRead::addScrolldownButton: Could not find "Latest Tweets" header!');
+			deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find "Latest Tweets" header!');
 		}
 
 		// Go up into the DOM tree until we can find a [role="button"].
@@ -281,7 +293,7 @@ class TwitterMarkLastRead {
 		while (!walk.querySelector('[role="button"]')) {
 			walk = walk.parentNode;
 			if (walk.tagName.toLowerCase() === 'body') {
-				throw new TweetException('TwitterMarkLastRead::addScrolldownButton: Could not find button in header!');
+				deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find button in header!');
 			}
 		}
 		// Then the parent of that button element is our target.
@@ -293,7 +305,7 @@ class TwitterMarkLastRead {
 
 		const wrapper = document.createElement('div');
 		wrapper.setAttribute('role', 'button');
-		wrapper.setAttribute('data-tmlr-scrolldown-button', '');
+		wrapper.setAttribute(scrolldown_attribute, '');
 		wrapper.setAttribute('title', 'Twitter Mark Last Read: Scroll to last read');
 		const inner = document.createElement('div');
 		inner.setAttribute('data-tmlr-inner', '');
@@ -315,7 +327,7 @@ class TwitterMarkLastRead {
 
 		wrapper.addEventListener('click', (event) => {
 			event.preventDefault();
-			new ScrollToLastRead();
+			this.scrollToLastRead.start();
 		});
 
 		target.insertBefore(wrapper, other_button);
