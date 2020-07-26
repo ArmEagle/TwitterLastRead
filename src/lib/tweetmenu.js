@@ -59,6 +59,10 @@ class TweetMenu {
 		this.addMenuItems();
 	}
 
+	/**
+	 * Add the custom menu items:
+	 * - Mark as Read.
+	 */
 	addMenuItems() {
 		const activeTweet = this.tmlr.getPopupActiveTweet();
 		if (!activeTweet) {

@@ -158,6 +158,8 @@ class Tweet {
 		this.tmlr = tmlr;
 		this.element = element;
 
+		this.selector_more_menu = '[role="button"][aria-haspopup="true"][aria-label="More"]';
+
 		this.key_tweet_markread_checked = 'data-tmlr-checked';
 		this.tweet_handled_attribute = 'data-tmlr-handled';
 		this.key_tweet_id = 'data-tmlr-tweet-id';
@@ -201,7 +203,7 @@ class Tweet {
 		// This menu is stored independently from the tweet.
 		// Pass 'active' tweet id to TMLR so it knows for which Tweet the menu was opened.
 		if (this.isNormal()) {
-			const popupHook = this.element.querySelector('[role="button"][aria-haspopup="true"][aria-label="More"]');
+			const popupHook = this.element.querySelector(this.selector_more_menu);
 			if (!popupHook) {
 				throw new TweetException('Could not find Tweet context menu dropdown hook.', {
 					tweet: this,
@@ -212,7 +214,25 @@ class Tweet {
 					this.tmlr.setPopupActiveTweet(this);
 				});
 			}
+		} else {
+			// Reset for other tweet types so we don't add the "Mark all Read" button elsewhere once this is set once.
+			this.tmlr.setPopupActiveTweet(null);
 		}
+
+		// Reset active tweet when clicking the in the tweet container.
+		// This prevents the active tweet causing the "Mark all Read" button to appear for subsequent other element
+		// clicks like when clicking on "Retweet".
+		this.element.addEventListener('click', (event) => {
+			if (
+				event.target.matches(this.selector_more_menu)
+				|| event.target.closest(this.selector_more_menu)
+			) {
+				return;
+			}
+
+			deb.debug('Tweet::popupHook reset', event, this.getId());
+			this.tmlr.setPopupActiveTweet(null);
+		});
 
 		deb.debug('Tweet::addEventListeners::end');
 	}
@@ -418,6 +438,10 @@ class TweetMenu {
 		this.addMenuItems();
 	}
 
+	/**
+	 * Add the custom menu items:
+	 * - Mark as Read.
+	 */
 	addMenuItems() {
 		const activeTweet = this.tmlr.getPopupActiveTweet();
 		if (!activeTweet) {
