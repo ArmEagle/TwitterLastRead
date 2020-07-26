@@ -6,6 +6,7 @@
 - Scroll to last button and functionality works better now.
 ### Added
 - Changelog retroactively.
+- Added links to changelog and license in readme.
 
 ## 2020-06-27 - version 1.1
 ### Fixed

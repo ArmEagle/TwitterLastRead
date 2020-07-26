@@ -7,6 +7,8 @@ This is a complete rewrite. Twitter now uses ReactJS, with uglified classnames, 
 
 This is still a work in progress.
 
+See [changelog](CHANGELOG.md) and [license](LICENSE).
+
 # Use
 
 Install by [clicking here on build/scipt.user.js](https://github.com/ArmEagle/TwitterLastRead/raw/master/build/script.user.js).
