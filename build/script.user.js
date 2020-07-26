@@ -1119,13 +1119,12 @@ class TwitterMarkLastRead {
 		this.settings.set('lastread', this.lastReadId);
 		// Mark all current tweets as read.
 		this.getTweets().forEach((tweet) => {
-			deb.debug('TwitterMarkLastRead::setLastReadId::tweet', tweet);
 			if (!tweet.hasElement()) {
 				deb.debug('TwitterMarkLastRead::setLastReadId::tweet', 'has no element');
 				this.removeTweet(tweet.getId());
 				return;
 			}
-			deb.debug('TwitterMarkLastRead::setLastReadId::tweet', 'recheck tweet');
+			deb.debug('TwitterMarkLastRead::setLastReadId::tweet recheck', tweet);
 			tweet.checkTweet(this.lastReadId, true);
 		});
 	}
