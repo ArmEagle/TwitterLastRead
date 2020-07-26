@@ -28,6 +28,9 @@ class ScrollToLastRead {
 		/* Delay to continue after first tweet is loaded. */
 		this.waitDelay = 500;
 
+		/* Amount to scroll vertically from the specific tweet for clarity. */
+		this.scrollPadding = -100;
+
 		/* Stop scrolling at end op the page: */
 		/* Store last body height. */
 		this.lastHeight = 0;
@@ -55,6 +58,13 @@ class ScrollToLastRead {
 	 */
 	start() {
 		deb.debug('ScrollToLastRead::start');
+
+		// First try to find a currently loaded read tweet.
+		const last_read_tweet = document.querySelector('[data-tmlr-read]')
+		if (last_read_tweet) {
+			this.scrollToElement(last_read_tweet);
+			return;
+		}
 
 		this.running = true;
 		this.lastHeighRepeat = 0;
@@ -110,12 +120,30 @@ class ScrollToLastRead {
 		const first_tweet = document.querySelector('[data-tmlr-read]');
 		deb.debug('ScrollToLastRead::scrollToFirstLastRead', first_tweet);
 		if (first_tweet) {
-			first_tweet.scrollIntoView();
+			this.scrollToElement(first_tweet);
 		}
 	}
 
 	/**
-	 * Scroll to the (current) end of the window.
+	 * Scroll element into view.
+	 * @param {HTMLElement} element
+	 */
+	scrollToElement(element) {
+		deb.debug('ScrollToLastRead::scrollToElement', element);
+		if (!element) {
+			return;
+		}
+
+		element.scrollIntoView();
+		// Scroll up a little.
+		window.scrollBy({
+			top: this.scrollPadding,
+			behavior: 'smooth',
+		});
+	}
+
+	/**
+	 * Scroll to the last tweet currently loaded.
 	 * Automatically stops attempts to scroll when no more content is loaded.
 	 */
 	scrollToEnd() {
@@ -128,7 +156,8 @@ class ScrollToLastRead {
 			this.lastHeight, window.scrollY, this.lastHeighRepeat, this.lastHeighRepeatLimit
 		);
 
-		window.scrollBy(0, 100000);
+		// Scroll to the last tweet.
+		[... document.querySelectorAll('[data-tmlr-tweet-id]')].pop().scrollIntoView();
 
 		// Store current position to detect whether we've hit 'the end' (Twitter stops loading Tweets up to about 1.5 days ago).
 		if (this.lastHeight === window.scrollY) {
