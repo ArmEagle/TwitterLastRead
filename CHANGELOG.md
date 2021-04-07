@@ -1,5 +1,9 @@
 # Changelog
 
+## 2021-04-07 - version 1.3.1
+### Fixed
+- Fixed typo in the install link text in the README.
+
 ## 2021-04-07 - version 1.3
 To be honest, all but the fixed bit are changes are from quite a while ago.
 ### Fixed

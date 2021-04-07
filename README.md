@@ -11,7 +11,7 @@ See [changelog](CHANGELOG.md) and [license](LICENSE).
 
 # Use
 
-Install by [clicking here on build/scipt.user.js](https://github.com/ArmEagle/TwitterLastRead/raw/master/build/script.user.js).
+Install by [clicking here on build/script.user.js](https://github.com/ArmEagle/TwitterLastRead/raw/master/build/script.user.js).
 
 This script will only let you mark original tweets as read. So; promoted (soon), retweeted tweets, will be completely disregarded.
 To mark a tweet as the last read; open the popup menu of the Tweet (chevron icon at the top right) and click on "Mark read".
