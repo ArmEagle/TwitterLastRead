@@ -17,7 +17,7 @@ class TwitterMarkLastRead {
 		this.lastReadId = this.settings.get('lastread') || false;
 		this.scrollToLastRead = new ScrollToLastRead();
 
-		/** @property {Map.<BigInt, Tweet>} Map with loaded Tweet objects. **/
+		/** @property {Map.<StringBigInt, Tweet>} Map with loaded Tweet objects. **/
 		this.tweets = new Map();
 
 		/** @property {Tweet} Tweet the popup menu was last opened for. **/
@@ -96,7 +96,9 @@ class TwitterMarkLastRead {
 	 */
 	handleTweet(tweetElement) {
 		deb.debug('TwitterMarkLastRead::handleTweet', tweetElement);
-		tweetElement.setAttribute('data-tmlr-debug', ''); //@debug
+		if (deb.isEnabled()) {
+			tweetElement.setAttribute('data-tmlr-debug', ''); //@debug
+		}
 
 		// Not when in modal
 		/*
@@ -122,6 +124,15 @@ class TwitterMarkLastRead {
 		deb.debug('TwitterMarkLastRead::addTweet', tweet);
 		this.tweets.set(tweet.getStringId(), tweet);
 		deb.debug('TwitterMarkLastRead::addTweet::length', Array.from(this.tweets.keys()).length);
+	}
+
+	/**
+	 * Return Tweet object for given id.
+	 * @param {id} tweetid
+	 * @return {Tweet}
+	 */
+	getTweet(tweetid) {
+		return this.tweets.get(tweetid);
 	}
 
 	/**
@@ -156,11 +167,17 @@ class TwitterMarkLastRead {
 			[data-tmlr-retweet] {
 				border-left: 3px solid #7c98ff;
 			}
+			[data-tmlr-promoted] {
+				height: 0;
+			}
 			[data-tmlr-read][data-tmlr-retweet] {
 				border-left: 3px solid #7c98aa;
 			}
 			[data-tmlr-debug] {
 				border-right: 3px solid #ff907c;
+			}
+			[data-tmlr-read][data-tmlr-thread-id] {
+				border-left: 3px dotted #b0ff9c;
 			}
 			[data-tmlr-menuitem] {
 				color: white;
@@ -232,29 +249,35 @@ class TwitterMarkLastRead {
 	}
 
 	/**
-	 * @return {BigInt} The last read Tweet id.
+	 * @return {StringBigInt} The last read Tweet id.
 	 */
 	getLastReadId() {
 		return this.lastReadId;
 	}
 
 	/**
-	 * @param tweetId {BigInt} The last read Tweet id.
+	 * @param tweetId {StringBigInt} The last read Tweet id.
 	 */
 	setLastReadId(tweetId) {
 		// @todo
-		deb.debug('TwitterMarkLastRead::setLastReadId', '' + tweetId);
-		this.lastReadId = '' + tweetId;
-		this.settings.set('lastread', this.lastReadId);
+		deb.debug('TwitterMarkLastRead::setLastReadId 1', '' + tweetId);
+		this.lastReadId = new StringBigInt(tweetId);
+		this.settings.set('lastread', this.getLastReadId());
+		deb.debug('TwitterMarkLastRead::setLastReadId 2', '' + tweetId);
 		// Mark all current tweets as read.
 		this.getTweets().forEach((tweet) => {
+			deb.debug('TwitterMarkLastRead::setLastReadId 3', '' + tweetId, tweet);
 			if (!tweet.hasElement()) {
 				deb.debug('TwitterMarkLastRead::setLastReadId::tweet', 'has no element');
 				this.removeTweet(tweet.getId());
 				return;
 			}
 			deb.debug('TwitterMarkLastRead::setLastReadId::tweet recheck', tweet);
-			tweet.checkTweet(this.lastReadId, true);
+			try {
+				tweet.checkTweet(this.getLastReadId(), true);
+			} catch (error) {
+				console.error(error);
+			}
 		});
 	}
 
@@ -351,8 +374,9 @@ class SettingsUI {
 
 
 // Setup debug output with filter.
-const deb = new Debug(true, /Settings|Tweet::popupHook|setLastReadId|ScrollToLastRead|TweetMenu|Tweet::init::end/);
-//const deb = new Debug(true, /TwitterMarkLastRead::/);
+const deb = new Debug(/Settings|ScrollToLastRead|Tweet::checkTweet/);
+// deb.enable(); //@debug
+//const deb = new Debug(/TwitterMarkLastRead::/);
 
 /*
  * We only want to load when the timeline is ordered on latest tweets
@@ -376,6 +400,3 @@ const await_selector_tmlr = new AwaitSelectorMatchObserver(
 		}
 	}
 )
-
-
-console.log('end scr');

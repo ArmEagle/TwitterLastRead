@@ -16,10 +16,11 @@ class Fuse {
 	}
 
 	/**
-	 * Restart the fuse.
+	 * Start the fuse.
 	 */
-	relight() {
-		deb.debug('Fuse::relight');
+	start() {
+		deb.debug('Fuse::start');
+
 		this.stop();
 
 		this.timer = this.use_interval
@@ -31,6 +32,17 @@ class Fuse {
 				deb.debug('Fuse::callback timeout');
 				this.callback(this);
 			}, this.delay);
+	}
+
+	/**
+	 * Reset timeout. Only when timer is still active.
+	 */
+	relight(force) {
+		deb.debug('Fuse::relight');
+
+		if (!this.timer) {
+			this.start();
+		}
 	}
 
 	/**

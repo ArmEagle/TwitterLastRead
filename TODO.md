@@ -1,4 +1,8 @@
 # TODO
+## Must
+- Store which is last read tweet. Then compare when doing thread check. Continue scrolling somehow if tweet
+is marked as a last read.
+
 - Store last marked read tweet based on url. This to support lists.
 	- Script doesn't load on Notifications yet.
 - Support threads in main timeline correctly.

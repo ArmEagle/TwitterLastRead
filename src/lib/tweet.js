@@ -13,16 +13,19 @@ class Tweet {
 		this.tmlr = tmlr;
 		this.element = element;
 
-		this.selector_more_menu = '[role="button"][aria-haspopup="true"][aria-label="More"]';
+		this.selector_more_menu = '[role="button"][aria-haspopup="menu"][aria-label="More"]';
 
-		this.key_tweet_markread_checked = 'data-tmlr-checked';
-		this.tweet_handled_attribute = 'data-tmlr-handled';
-		this.key_tweet_id = 'data-tmlr-tweet-id';
+		this.key_tweet_markread_checked = 'data-tmlr-checked'; // Flag that marks that this tweet was checked.
+		this.tweet_handled_attribute = 'data-tmlr-handled'; // Flag that marks that this element has been handled.
+		this.key_tweet_id = 'data-tmlr-tweet-id'; // Stores the tweet id.
+		this.state_thread_id = 'data-tmlr-thread-id'; // This tweet is part of a thread. Contains id of latest tweet.
 
-		this.state_read = 'data-tmlr-read';
-		this.state_retweet = 'data-tmlr-retweet';
+		this.state_read = 'data-tmlr-read'; // This tweet is marked as read.
+		this.state_retweet = 'data-tmlr-retweet'; // This tweet is a retweet.
 		this.state_like = 'data-tmlr-like'; // @todo // not shown anymore? setting?
-		this.state_promoted = 'data-tmlr-promoted'; // @todo
+		this.state_promoted = 'data-tmlr-promoted'; // @todo This is a promoted tweet.
+
+		this.state_last_read_tweet = 'data-tmlr-last-read-tweet'; // This tweet is marked as the last read tweet.
 	}
 
 	init() {
@@ -94,11 +97,11 @@ class Tweet {
 
 	/**
 	 * Check Tweet: for type and whether tweet should be marked as already read.
-	 * @param {BigInt|null} lastReadId
+	 * @param {StringBigInt|null} lastReadId
 	 * @param {boolean} force If set, ignore the attribute that marks already being checked.
 	 */
 	checkTweet(lastReadId, force) {
-		deb.debug('Tweet::checkMarkRead', lastReadId, this.element);
+		deb.debug('Tweet::checkTweet', lastReadId, this.element);
 
 		if (!lastReadId) {
 			return;
@@ -108,19 +111,73 @@ class Tweet {
 			return;
 		}
 
-		if (this.isRetweetElement()) {
-			deb.debug('Tweet::checkMarkRead-detail', 'is retweet');
+		if (this.isPromotedElement()) {
+			deb.debug('Tweet::checkTweet-detail', 'is promoted');
+			this.element.setAttribute(this.state_promoted, '');
+		} else if (this.isRetweetElement()) {
+			deb.debug('Tweet::checkTweet-detail', 'is retweet');
 			this.element.setAttribute(this.state_retweet, '');
 		} else {
 			const tweetId = this.getId();
-			if (this.getId() <= lastReadId) {
-				deb.debug('Tweet::checkMarkRead-detail', 'mark as read', this.getId(), '<=', lastReadId);
+			const tweetThreadId = this.getThreadId();
+			this.threadCheck(lastReadId);
+
+			if (this.getId().compare(lastReadId) <= 0) {
+				deb.debug('Tweet::checkTweet-detail', 'mark as read', this.getId(), '<=', lastReadId);
 				this.element.setAttribute(this.state_read, '');
 			} else {
-				deb.debug('Tweet::checkMarkRead-detail', 'new tweet', this.getId(), '>', lastReadId);
+				deb.debug('Tweet::checkTweet-detail', 'new tweet', this.getId(), '>', lastReadId);
 				this.element.removeAttribute(this.state_read);
 			}
 		}
+	}
+
+	/**
+	 * Check for thread state.
+	 * @param {StringBigInt|null} lastReadId
+	 */
+	threadCheck(lastReadId) {
+		deb.debug('Tweet::threadCheck', this);
+		const tweet_id = this.getStringId();
+
+		const all_id_tweets = document.querySelectorAll('[' + this.key_tweet_id + ']');
+		// Iterate over until we find this Tweet.
+		let index = [... all_id_tweets].findIndex((tweet_element) => {
+			const it_tweet_id = tweet_element.getAttribute(this.key_tweet_id);
+			return it_tweet_id === tweet_id;
+		});
+
+		// No match or useless match when first.
+		if (index <= 0) {
+			return;
+		}
+
+		// Keep going back until newer tweet id or retweet.
+		while (index > 0) {
+			index--;
+			const current_tweet_id = all_id_tweets[index].getAttribute(this.key_tweet_id);
+			const current_tweet = this.tmlr.getTweet(current_tweet_id);
+			// Break when we couldn't load the Tweet, tweet id is increasing, or this is a retweet.
+			if (!current_tweet || current_tweet_id >= tweet_id || current_tweet.isRetweet()) { //@todo promoted
+				deb.debug('Tweet::threadCheck break', current_tweet, current_tweet_id, tweet_id, index);
+				// Fail.
+				break;
+			}
+
+			if (current_tweet_id < tweet_id) {
+				// Set attribute with initial thread id.
+				const current_thread_id = current_tweet.element.getAttribute(this.state_thread_id);
+
+				// Set, or update with highest tweet id of thread.
+				if (!current_thread_id || current_thread_id < tweet_id) {
+					current_tweet.element.setAttribute(this.state_thread_id, tweet_id);
+				}
+
+				deb.debug('Tweet::threadCheck CHECKED thread', current_tweet, current_tweet_id, tweet_id, current_thread_id);
+			}
+		}
+
+		deb.debug('Tweet::threadCheck end', index, this, tweet_id);
 	}
 
 	/**
@@ -160,22 +217,26 @@ class Tweet {
 
 	/**
 	 * Check whether an attribute is already set, and set it if it isn't yet.
-	 * @param {string} dataKey
+	 * @param {string} data_key
+	 * @param {string} value Value for attribute, defaults to {true}.
 	 * @return {boolean} Whether the attribute was already set.
 	 */
- 	checkAttribute(dataKey) {
+ 	checkAttribute(data_key, value) {
 		deb.debug('Tweet::checkAttribute');
+		if (typeof value === 'undefined') {
+			value = 'true';
+		}
 
-		if (this.element.hasAttribute(dataKey)) {
+		if (this.element.hasAttribute(data_key)) {
 			return true;
 		}
-		this.element.setAttribute(dataKey, true);
+		this.element.setAttribute(data_key, value);
 
 		return false;
 	}
 
 	/**
-	 * @return {BigInt} Tweet id
+	 * @return {StringBigInt} Tweet id
 	 * @throws When id not found
 	 */
 	getId() {
@@ -200,10 +261,18 @@ class Tweet {
 			});
 		}
 
-		this.id = new BigInt(tweet_id_matches[0]);
+		this.id = new StringBigInt(tweet_id_matches[0]);
 		this.element.setAttribute(this.key_tweet_id, this.id.toString());
 
 		return this.id;
+	}
+
+	/**
+	 * @return {StringBigInt|null} Id of latest tweet of thread or null when not set.
+	 */
+	getThreadId() {
+		const id = this.element.getAttribute(this.state_thread_id);
+		return id ? new StringBigInt(id) : null;
 	}
 
 	/**
@@ -214,6 +283,7 @@ class Tweet {
 	}
 
 	/**
+	 * Check whether this Tweet element is a Retweeted tweet.
 	 * @return {boolean}
 	 */
 	isRetweetElement() {
@@ -225,10 +295,31 @@ class Tweet {
 	}
 
 	/**
+	 * Check whether this Tweet element is a Promoted tweet.
+	 * @return {boolean}
+	 */
+	isPromotedElement() {
+		deb.debug('Tweet::isPromotedElement');
+
+		// Is a span element containing "Promoted", in a div that follows on an svg (for the arrow icon),
+		// in a div, that follows a div with role=group (the bar with comment/retweet/like buttons and stats).
+		const span = this.element.querySelector('div[role="group"] ~ div > svg ~ div > span');
+		return span && span.textContent.indexOf('Promoted') >= 0;
+	}
+
+	/**
 	 * Whether this Tweet still has an element.
 	 * @return {boolean}
 	 */
 	hasElement() {
 		return !!this.element;
+	}
+
+	/**
+	 * Return the HTML element of this Tweet.
+	 * @return {HTMLElement}
+	 */
+	getElement() {
+		return this.element;
 	}
 }

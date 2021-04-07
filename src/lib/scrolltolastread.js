@@ -21,17 +21,6 @@ class ScrollToLastRead {
 
 		/* Attribute to set to body when we're scrolling. */
 		this.body_running_attribute = 'data-scrolltolastread-running';
-
-		// Add listener for new created tweets. This relights the fuse.
-		this.newTweetListener = document.addEventListener(
-			Events.NEW_TWEET,
-			(event) => {
-				// @todo[S] Use removeEventListener to stop listening - then move this to `this.start()` and remove running check
-				// in `this.tweetAddedHandler()`.
-				// But this has some issues.
-				this.tweetAddedHandler(event);
-			}
-		)
 	}
 
 	/**
@@ -43,19 +32,35 @@ class ScrollToLastRead {
 			return;
 		}
 
+		// Fire event.
+		document.dispatchEvent(new CustomEvent(Events.SCROLL_TO_LAST_READ_START));
+
 		// First try to find a currently loaded read tweet.
-		const last_read_tweet = document.querySelector('[data-tmlr-read]')
+		const last_read_tweet = document.querySelector('[data-tmlr-read]:not([data-tmlr-thread-id])')
 		if (last_read_tweet) {
 			this.scrollToElement(last_read_tweet);
 			return;
 		}
 
 		this.setRunning(true);
+
+		// Add listener for new created tweets. This relights the fuse.
+		this.newTweetListener = document.addEventListener(
+			Events.NEW_TWEET,
+			(event) => {
+				this.tweetAddedHandler(event);
+			}
+		)
+
 		this.lastHeighRepeat = 0;
 
 		this.fuse = new Fuse(
 			(fuse) => {
-				this.scrollToEnd();
+				if (this.is_running) {
+					this.scrollToEnd();
+				} else {
+					this.scrollToFirstLastRead();
+				}
 			},
 			this.waitDelay,
 			true
@@ -69,6 +74,7 @@ class ScrollToLastRead {
 	setRunning(is_running) {
 		this.is_running = is_running;
 
+		// @todo Change this to use the start/stop events.
 		if (is_running) {
 			document.body.setAttribute(this.body_running_attribute, '');
 		} else {
@@ -83,6 +89,10 @@ class ScrollToLastRead {
 		this.setRunning(false);
 		this.fuse.stop();
 		document.removeEventListener(Events.NEW_TWEET, this.tweetAddedHandler);
+
+		// Fire event.
+		document.dispatchEvent(new CustomEvent(Events.SCROLL_TO_LAST_READ_STOP));
+
 		deb.debug('ScrollToLastRead::stopped');
 	}
 
@@ -98,24 +108,37 @@ class ScrollToLastRead {
 
 		deb.debug('ScrollToLastRead::tweetAddedHandler', event);
 
-		// Check whether we've found a read tweet
 		/** @var {Tweet} tweet */
 		const tweet = event.detail.tweet;
-		if (tweet && tweet.isRead()) {
-			deb.debug('ScrollToLastRead::tweetAddedHandler found read tweet, stopping');
-			this.stop();
-			this.scrollToFirstLastRead();
-		}
 
-		// Reset fuse.
-		this.fuse.relight();
+		// Small delay for other tweets to be handled first too.
+		// That other logic handles threaded tweets only after subsequent Tweets are loaded and handled.
+		window.setTimeout(() => {
+			this.checkTweet(tweet);
+		}, 100);
 	}
 
 	/**
-	 * Scrolls to the first last read tweet.
+	 * Check the tweet.
+	 * @param {Tweet} tweet
+	 */
+	checkTweet(tweet) {
+		// Reset fuse.
+		this.fuse.relight();
+
+		// Check whether we've found a read tweet. Don't want to check thread tweets.
+		if (tweet && tweet.isRead() && !tweet.getThreadId()) {
+			deb.debug('ScrollToLastRead::tweetAddedHandler found read tweet, stopping', tweet.element.outerHTML);
+			this.stop();
+			this.scrollToElement(tweet.getElement());
+		}
+	}
+
+	/**
+	 * Scrolls to the first last read tweet, not a thread tweet.
 	 */
 	scrollToFirstLastRead() {
-		const first_tweet = document.querySelector('[data-tmlr-read]');
+		const first_tweet = document.querySelector('[data-tmlr-read]:not([data-tmlr-thread-id])');
 		deb.debug('ScrollToLastRead::scrollToFirstLastRead', first_tweet);
 		if (first_tweet) {
 			this.scrollToElement(first_tweet);
@@ -127,7 +150,7 @@ class ScrollToLastRead {
 	 * @param {HTMLElement} element
 	 */
 	scrollToElement(element) {
-		deb.debug('ScrollToLastRead::scrollToElement', element);
+		deb.debug('ScrollToLastRead::scrollToElement', element, element.outerHTML);
 		if (!element) {
 			return;
 		}

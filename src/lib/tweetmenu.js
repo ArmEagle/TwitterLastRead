@@ -3,6 +3,9 @@
  */
 class TweetMenu {
 
+	/**
+	 * @param {TwitterMarkLastRead} tmlr
+	 */
 	constructor(tmlr) {
 		this.tmlr = tmlr;
 		this.tweetMenuWrapper = null;
@@ -73,6 +76,7 @@ class TweetMenu {
 			this.addMenuItem(
 				'Mark as Read',
 				(event) => {
+					deb.debug('TweetMenu::addMenuItems', event, activeTweet);
 					this.tmlr.setLastReadId(activeTweet.getId());
 				}
 			);

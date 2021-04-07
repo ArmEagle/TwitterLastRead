@@ -1,5 +1,16 @@
 # Changelog
 
+## 2021-04-07 - version 1.3
+To be honest, all but the fixed bit are changes are from quite a while ago.
+### Fixed
+- Tweet menu selector (3 dots) is changed to follow a small change in element attributes made by Twitter. You can mark a Tweet as last read again.
+### Added
+- Detection and marking of promoted Tweets so they are automatically hidden.
+- Improvements made to the scroll to last tweet functionality. Tweet threads are now detected and handled to not stop at a Tweet in a thread, followed by a more recent Tweet. Note the green dotted left border instead of the solid border.
+### Removed
+- Debugging is now disabled and no initial logging anymore.
+- Detection of Tweets, used to be marked by a red right border, is now hidden. Depends on enabled state of the 'debugger'.
+
 ## 2020-07-26 - version 1.2
 ### Fixed
 - "Mark as Read" button is not added to the Retweet menu anymore.

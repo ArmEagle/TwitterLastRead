@@ -1,8 +1,6 @@
 // ==UserScript==
 // @name	Twitter - Mark Last Read
-// @version 1.2
+// @version 1.3
 // @grant   none
 // @include https://*twitter.com/*
 // ==/UserScript==
-
-console.log('start script');

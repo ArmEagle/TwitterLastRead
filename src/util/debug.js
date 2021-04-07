@@ -1,12 +1,11 @@
 class Debug {
 	/**
-	 * @param {bool} Whether debug is logged at all.
 	 * @param {RegExp} Debug string should match this regular expression to be logged.
 	 */
-	constructor(enabled, filter) {
+	constructor(filter) {
 		this.filter = filter;
-		console.debug('Debug::constructor'); //@debug
-		this.enabled = enabled;
+		this.enabled = false;
+		this.debug('Debug::constructor'); //@debug
 	}
 
 	/**
@@ -16,9 +15,30 @@ class Debug {
 	debug(string) {
 		if (
 			!this.filter
-			|| this.enabled && string.match(this.filter)
+			|| this.isEnabled() && string.match(this.filter)
 		) {
 			console.debug([...arguments]);
 		}
+	}
+
+	/**
+	 * Disable debug output.
+	 */
+	disable() {
+		this.enabled = false;
+	}
+
+	/**
+	 * Enable debug output;
+	 */
+	enable() {
+		this.enabled = true;
+	}
+
+	/**
+	 * @return bool Whether debugging is enabled.
+	 */
+	isEnabled() {
+		return this.enabled;
 	}
 }

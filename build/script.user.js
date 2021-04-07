@@ -1,11 +1,9 @@
 // ==UserScript==
 // @name	Twitter - Mark Last Read
-// @version 1.2
+// @version 1.3
 // @grant   none
 // @include https://*twitter.com/*
 // ==/UserScript==
-
-console.log('start script');
 class TweetException extends Error {
 	constructor(message, details) {
 		this.details = details;
@@ -18,6 +16,16 @@ class Events {}
  * Event fired when a new {Tweet} was created.
  */
 Events.NEW_TWEET = 'new_tweet';
+
+/**
+ * Event fired when scroll to last read starts.
+ */
+Events.SCROLL_TO_LAST_READ_START = 'scroll_to_last_read_start';
+
+/**
+ * Event fired when scroll to last read stops.
+ */
+Events.SCROLL_TO_LAST_READ_STOP = 'scroll_to_last_read_stop';
 /**
  * This class contains all functionality to scroll to the last read tweet.
  * Scroll down, with a fuse on new tweet events to wait until we scroll further.
@@ -41,17 +49,6 @@ class ScrollToLastRead {
 
 		/* Attribute to set to body when we're scrolling. */
 		this.body_running_attribute = 'data-scrolltolastread-running';
-
-		// Add listener for new created tweets. This relights the fuse.
-		this.newTweetListener = document.addEventListener(
-			Events.NEW_TWEET,
-			(event) => {
-				// @todo[S] Use removeEventListener to stop listening - then move this to `this.start()` and remove running check
-				// in `this.tweetAddedHandler()`.
-				// But this has some issues.
-				this.tweetAddedHandler(event);
-			}
-		)
 	}
 
 	/**
@@ -63,19 +60,35 @@ class ScrollToLastRead {
 			return;
 		}
 
+		// Fire event.
+		document.dispatchEvent(new CustomEvent(Events.SCROLL_TO_LAST_READ_START));
+
 		// First try to find a currently loaded read tweet.
-		const last_read_tweet = document.querySelector('[data-tmlr-read]')
+		const last_read_tweet = document.querySelector('[data-tmlr-read]:not([data-tmlr-thread-id])')
 		if (last_read_tweet) {
 			this.scrollToElement(last_read_tweet);
 			return;
 		}
 
 		this.setRunning(true);
+
+		// Add listener for new created tweets. This relights the fuse.
+		this.newTweetListener = document.addEventListener(
+			Events.NEW_TWEET,
+			(event) => {
+				this.tweetAddedHandler(event);
+			}
+		)
+
 		this.lastHeighRepeat = 0;
 
 		this.fuse = new Fuse(
 			(fuse) => {
-				this.scrollToEnd();
+				if (this.is_running) {
+					this.scrollToEnd();
+				} else {
+					this.scrollToFirstLastRead();
+				}
 			},
 			this.waitDelay,
 			true
@@ -89,6 +102,7 @@ class ScrollToLastRead {
 	setRunning(is_running) {
 		this.is_running = is_running;
 
+		// @todo Change this to use the start/stop events.
 		if (is_running) {
 			document.body.setAttribute(this.body_running_attribute, '');
 		} else {
@@ -103,6 +117,10 @@ class ScrollToLastRead {
 		this.setRunning(false);
 		this.fuse.stop();
 		document.removeEventListener(Events.NEW_TWEET, this.tweetAddedHandler);
+
+		// Fire event.
+		document.dispatchEvent(new CustomEvent(Events.SCROLL_TO_LAST_READ_STOP));
+
 		deb.debug('ScrollToLastRead::stopped');
 	}
 
@@ -118,24 +136,37 @@ class ScrollToLastRead {
 
 		deb.debug('ScrollToLastRead::tweetAddedHandler', event);
 
-		// Check whether we've found a read tweet
 		/** @var {Tweet} tweet */
 		const tweet = event.detail.tweet;
-		if (tweet && tweet.isRead()) {
-			deb.debug('ScrollToLastRead::tweetAddedHandler found read tweet, stopping');
-			this.stop();
-			this.scrollToFirstLastRead();
-		}
 
-		// Reset fuse.
-		this.fuse.relight();
+		// Small delay for other tweets to be handled first too.
+		// That other logic handles threaded tweets only after subsequent Tweets are loaded and handled.
+		window.setTimeout(() => {
+			this.checkTweet(tweet);
+		}, 100);
 	}
 
 	/**
-	 * Scrolls to the first last read tweet.
+	 * Check the tweet.
+	 * @param {Tweet} tweet
+	 */
+	checkTweet(tweet) {
+		// Reset fuse.
+		this.fuse.relight();
+
+		// Check whether we've found a read tweet. Don't want to check thread tweets.
+		if (tweet && tweet.isRead() && !tweet.getThreadId()) {
+			deb.debug('ScrollToLastRead::tweetAddedHandler found read tweet, stopping', tweet.element.outerHTML);
+			this.stop();
+			this.scrollToElement(tweet.getElement());
+		}
+	}
+
+	/**
+	 * Scrolls to the first last read tweet, not a thread tweet.
 	 */
 	scrollToFirstLastRead() {
-		const first_tweet = document.querySelector('[data-tmlr-read]');
+		const first_tweet = document.querySelector('[data-tmlr-read]:not([data-tmlr-thread-id])');
 		deb.debug('ScrollToLastRead::scrollToFirstLastRead', first_tweet);
 		if (first_tweet) {
 			this.scrollToElement(first_tweet);
@@ -147,7 +178,7 @@ class ScrollToLastRead {
 	 * @param {HTMLElement} element
 	 */
 	scrollToElement(element) {
-		deb.debug('ScrollToLastRead::scrollToElement', element);
+		deb.debug('ScrollToLastRead::scrollToElement', element, element.outerHTML);
 		if (!element) {
 			return;
 		}
@@ -205,16 +236,19 @@ class Tweet {
 		this.tmlr = tmlr;
 		this.element = element;
 
-		this.selector_more_menu = '[role="button"][aria-haspopup="true"][aria-label="More"]';
+		this.selector_more_menu = '[role="button"][aria-haspopup="menu"][aria-label="More"]';
 
-		this.key_tweet_markread_checked = 'data-tmlr-checked';
-		this.tweet_handled_attribute = 'data-tmlr-handled';
-		this.key_tweet_id = 'data-tmlr-tweet-id';
+		this.key_tweet_markread_checked = 'data-tmlr-checked'; // Flag that marks that this tweet was checked.
+		this.tweet_handled_attribute = 'data-tmlr-handled'; // Flag that marks that this element has been handled.
+		this.key_tweet_id = 'data-tmlr-tweet-id'; // Stores the tweet id.
+		this.state_thread_id = 'data-tmlr-thread-id'; // This tweet is part of a thread. Contains id of latest tweet.
 
-		this.state_read = 'data-tmlr-read';
-		this.state_retweet = 'data-tmlr-retweet';
+		this.state_read = 'data-tmlr-read'; // This tweet is marked as read.
+		this.state_retweet = 'data-tmlr-retweet'; // This tweet is a retweet.
 		this.state_like = 'data-tmlr-like'; // @todo // not shown anymore? setting?
-		this.state_promoted = 'data-tmlr-promoted'; // @todo
+		this.state_promoted = 'data-tmlr-promoted'; // @todo This is a promoted tweet.
+
+		this.state_last_read_tweet = 'data-tmlr-last-read-tweet'; // This tweet is marked as the last read tweet.
 	}
 
 	init() {
@@ -286,11 +320,11 @@ class Tweet {
 
 	/**
 	 * Check Tweet: for type and whether tweet should be marked as already read.
-	 * @param {BigInt|null} lastReadId
+	 * @param {StringBigInt|null} lastReadId
 	 * @param {boolean} force If set, ignore the attribute that marks already being checked.
 	 */
 	checkTweet(lastReadId, force) {
-		deb.debug('Tweet::checkMarkRead', lastReadId, this.element);
+		deb.debug('Tweet::checkTweet', lastReadId, this.element);
 
 		if (!lastReadId) {
 			return;
@@ -300,19 +334,73 @@ class Tweet {
 			return;
 		}
 
-		if (this.isRetweetElement()) {
-			deb.debug('Tweet::checkMarkRead-detail', 'is retweet');
+		if (this.isPromotedElement()) {
+			deb.debug('Tweet::checkTweet-detail', 'is promoted');
+			this.element.setAttribute(this.state_promoted, '');
+		} else if (this.isRetweetElement()) {
+			deb.debug('Tweet::checkTweet-detail', 'is retweet');
 			this.element.setAttribute(this.state_retweet, '');
 		} else {
 			const tweetId = this.getId();
-			if (this.getId() <= lastReadId) {
-				deb.debug('Tweet::checkMarkRead-detail', 'mark as read', this.getId(), '<=', lastReadId);
+			const tweetThreadId = this.getThreadId();
+			this.threadCheck(lastReadId);
+
+			if (this.getId().compare(lastReadId) <= 0) {
+				deb.debug('Tweet::checkTweet-detail', 'mark as read', this.getId(), '<=', lastReadId);
 				this.element.setAttribute(this.state_read, '');
 			} else {
-				deb.debug('Tweet::checkMarkRead-detail', 'new tweet', this.getId(), '>', lastReadId);
+				deb.debug('Tweet::checkTweet-detail', 'new tweet', this.getId(), '>', lastReadId);
 				this.element.removeAttribute(this.state_read);
 			}
 		}
+	}
+
+	/**
+	 * Check for thread state.
+	 * @param {StringBigInt|null} lastReadId
+	 */
+	threadCheck(lastReadId) {
+		deb.debug('Tweet::threadCheck', this);
+		const tweet_id = this.getStringId();
+
+		const all_id_tweets = document.querySelectorAll('[' + this.key_tweet_id + ']');
+		// Iterate over until we find this Tweet.
+		let index = [... all_id_tweets].findIndex((tweet_element) => {
+			const it_tweet_id = tweet_element.getAttribute(this.key_tweet_id);
+			return it_tweet_id === tweet_id;
+		});
+
+		// No match or useless match when first.
+		if (index <= 0) {
+			return;
+		}
+
+		// Keep going back until newer tweet id or retweet.
+		while (index > 0) {
+			index--;
+			const current_tweet_id = all_id_tweets[index].getAttribute(this.key_tweet_id);
+			const current_tweet = this.tmlr.getTweet(current_tweet_id);
+			// Break when we couldn't load the Tweet, tweet id is increasing, or this is a retweet.
+			if (!current_tweet || current_tweet_id >= tweet_id || current_tweet.isRetweet()) { //@todo promoted
+				deb.debug('Tweet::threadCheck break', current_tweet, current_tweet_id, tweet_id, index);
+				// Fail.
+				break;
+			}
+
+			if (current_tweet_id < tweet_id) {
+				// Set attribute with initial thread id.
+				const current_thread_id = current_tweet.element.getAttribute(this.state_thread_id);
+
+				// Set, or update with highest tweet id of thread.
+				if (!current_thread_id || current_thread_id < tweet_id) {
+					current_tweet.element.setAttribute(this.state_thread_id, tweet_id);
+				}
+
+				deb.debug('Tweet::threadCheck CHECKED thread', current_tweet, current_tweet_id, tweet_id, current_thread_id);
+			}
+		}
+
+		deb.debug('Tweet::threadCheck end', index, this, tweet_id);
 	}
 
 	/**
@@ -352,22 +440,26 @@ class Tweet {
 
 	/**
 	 * Check whether an attribute is already set, and set it if it isn't yet.
-	 * @param {string} dataKey
+	 * @param {string} data_key
+	 * @param {string} value Value for attribute, defaults to {true}.
 	 * @return {boolean} Whether the attribute was already set.
 	 */
- 	checkAttribute(dataKey) {
+ 	checkAttribute(data_key, value) {
 		deb.debug('Tweet::checkAttribute');
+		if (typeof value === 'undefined') {
+			value = 'true';
+		}
 
-		if (this.element.hasAttribute(dataKey)) {
+		if (this.element.hasAttribute(data_key)) {
 			return true;
 		}
-		this.element.setAttribute(dataKey, true);
+		this.element.setAttribute(data_key, value);
 
 		return false;
 	}
 
 	/**
-	 * @return {BigInt} Tweet id
+	 * @return {StringBigInt} Tweet id
 	 * @throws When id not found
 	 */
 	getId() {
@@ -392,10 +484,18 @@ class Tweet {
 			});
 		}
 
-		this.id = new BigInt(tweet_id_matches[0]);
+		this.id = new StringBigInt(tweet_id_matches[0]);
 		this.element.setAttribute(this.key_tweet_id, this.id.toString());
 
 		return this.id;
+	}
+
+	/**
+	 * @return {StringBigInt|null} Id of latest tweet of thread or null when not set.
+	 */
+	getThreadId() {
+		const id = this.element.getAttribute(this.state_thread_id);
+		return id ? new StringBigInt(id) : null;
 	}
 
 	/**
@@ -406,6 +506,7 @@ class Tweet {
 	}
 
 	/**
+	 * Check whether this Tweet element is a Retweeted tweet.
 	 * @return {boolean}
 	 */
 	isRetweetElement() {
@@ -417,11 +518,32 @@ class Tweet {
 	}
 
 	/**
+	 * Check whether this Tweet element is a Promoted tweet.
+	 * @return {boolean}
+	 */
+	isPromotedElement() {
+		deb.debug('Tweet::isPromotedElement');
+
+		// Is a span element containing "Promoted", in a div that follows on an svg (for the arrow icon),
+		// in a div, that follows a div with role=group (the bar with comment/retweet/like buttons and stats).
+		const span = this.element.querySelector('div[role="group"] ~ div > svg ~ div > span');
+		return span && span.textContent.indexOf('Promoted') >= 0;
+	}
+
+	/**
 	 * Whether this Tweet still has an element.
 	 * @return {boolean}
 	 */
 	hasElement() {
 		return !!this.element;
+	}
+
+	/**
+	 * Return the HTML element of this Tweet.
+	 * @return {HTMLElement}
+	 */
+	getElement() {
+		return this.element;
 	}
 }
 /**
@@ -429,6 +551,9 @@ class Tweet {
  */
 class TweetMenu {
 
+	/**
+	 * @param {TwitterMarkLastRead} tmlr
+	 */
 	constructor(tmlr) {
 		this.tmlr = tmlr;
 		this.tweetMenuWrapper = null;
@@ -499,6 +624,7 @@ class TweetMenu {
 			this.addMenuItem(
 				'Mark as Read',
 				(event) => {
+					deb.debug('TweetMenu::addMenuItems', event, activeTweet);
 					this.tmlr.setLastReadId(activeTweet.getId());
 				}
 			);
@@ -717,61 +843,14 @@ class AwaitSelectorMatchObserver {
 		this.addedNodesMutationObserver.disconnect();
 	}
 }
-/**
- * Twitter IDs are pretty large. Big numbers aren't supported yet.
- * This class will convert integers to zero padded strings.
- * Comparison is then simply done as string comparison.
- */
-class BigInt {
-	/**
-	 * @param {int} value 
-	 */
-	constructor (value) {
-		// Number of 'digits' to use so we can always do string comparison of tweet ids by prepending zeros.
-		this.valueSize = 24; 
-		this.value = new String(value);
-	}
-
-	/**
-	 * @param {int} val 
-	 */
-	padZeros(val) {
-		while (val.length < this.valueSize) {
-			val = '0' + val;
-		}
-		return val;
-	}
-
-	/**
-	 * @return {string}
-	 */
-	toJSON() {
-		return this.valueOf();
-	}
-
-	/**
-	 * @return {string}
-	 */
-	toString() {
-		return this.valueOf();
-	}
-
-	/**
-	 * @return {string}
-	 */
-	valueOf() {
-		return this.padZeros(this.value);
-	}
-}
 class Debug {
 	/**
-	 * @param {bool} Whether debug is logged at all.
 	 * @param {RegExp} Debug string should match this regular expression to be logged.
 	 */
-	constructor(enabled, filter) {
+	constructor(filter) {
 		this.filter = filter;
-		console.debug('Debug::constructor'); //@debug
-		this.enabled = enabled;
+		this.enabled = false;
+		this.debug('Debug::constructor'); //@debug
 	}
 
 	/**
@@ -781,10 +860,31 @@ class Debug {
 	debug(string) {
 		if (
 			!this.filter
-			|| this.enabled && string.match(this.filter)
+			|| this.isEnabled() && string.match(this.filter)
 		) {
 			console.debug([...arguments]);
 		}
+	}
+
+	/**
+	 * Disable debug output.
+	 */
+	disable() {
+		this.enabled = false;
+	}
+
+	/**
+	 * Enable debug output;
+	 */
+	enable() {
+		this.enabled = true;
+	}
+
+	/**
+	 * @return bool Whether debugging is enabled.
+	 */
+	isEnabled() {
+		return this.enabled;
 	}
 }
 /**
@@ -805,10 +905,11 @@ class Fuse {
 	}
 
 	/**
-	 * Restart the fuse.
+	 * Start the fuse.
 	 */
-	relight() {
-		deb.debug('Fuse::relight');
+	start() {
+		deb.debug('Fuse::start');
+
 		this.stop();
 
 		this.timer = this.use_interval
@@ -820,6 +921,17 @@ class Fuse {
 				deb.debug('Fuse::callback timeout');
 				this.callback(this);
 			}, this.delay);
+	}
+
+	/**
+	 * Reset timeout. Only when timer is still active.
+	 */
+	relight(force) {
+		deb.debug('Fuse::relight');
+
+		if (!this.timer) {
+			this.start();
+		}
 	}
 
 	/**
@@ -922,6 +1034,62 @@ class Settings {
 	}
 }
 /**
+ * Twitter IDs are pretty large. Big numbers aren't supported yet.
+ * This class will convert integers to zero padded strings.
+ * Comparison is then simply done as string comparison.
+ */
+class StringBigInt {
+	/**
+	 * @param {int} value
+	 */
+	constructor (value) {
+		// Number of 'digits' to use so we can always do string comparison of tweet ids by prepending zeros.
+		this.valueSize = 24;
+		this.value = this.padZeros('' + value);
+	}
+
+	/**
+	 * @param {int} val
+	 */
+	padZeros(val) {
+		while (val.length < this.valueSize) {
+			val = '0' + val;
+		}
+		return val;
+	}
+
+	/**
+	 * @return {string}
+	 */
+	toJSON() {
+		return this.valueOf();
+	}
+
+	/**
+	 * @return {string}
+	 */
+	toString() {
+		return this.valueOf();
+	}
+
+	/**
+	 * @return {string}
+	 */
+	valueOf() {
+		return this.value;
+	}
+
+	/**
+	 * Compare with other value.
+	 * @param {StringBigInt} other
+	 * @return int From string comparison.
+	 */
+	compare(other) {
+		deb.debug('StringBigInt::compare', this.toString(), other.toString(), this.toString().localeCompare(other.toString(), 'en'));
+		return this.toString().localeCompare(other.toString(), 'en');
+	}
+}
+/**
  * Base class.
  */
 class TwitterMarkLastRead {
@@ -940,7 +1108,7 @@ class TwitterMarkLastRead {
 		this.lastReadId = this.settings.get('lastread') || false;
 		this.scrollToLastRead = new ScrollToLastRead();
 
-		/** @property {Map.<BigInt, Tweet>} Map with loaded Tweet objects. **/
+		/** @property {Map.<StringBigInt, Tweet>} Map with loaded Tweet objects. **/
 		this.tweets = new Map();
 
 		/** @property {Tweet} Tweet the popup menu was last opened for. **/
@@ -1019,7 +1187,9 @@ class TwitterMarkLastRead {
 	 */
 	handleTweet(tweetElement) {
 		deb.debug('TwitterMarkLastRead::handleTweet', tweetElement);
-		tweetElement.setAttribute('data-tmlr-debug', ''); //@debug
+		if (deb.isEnabled()) {
+			tweetElement.setAttribute('data-tmlr-debug', ''); //@debug
+		}
 
 		// Not when in modal
 		/*
@@ -1045,6 +1215,15 @@ class TwitterMarkLastRead {
 		deb.debug('TwitterMarkLastRead::addTweet', tweet);
 		this.tweets.set(tweet.getStringId(), tweet);
 		deb.debug('TwitterMarkLastRead::addTweet::length', Array.from(this.tweets.keys()).length);
+	}
+
+	/**
+	 * Return Tweet object for given id.
+	 * @param {id} tweetid
+	 * @return {Tweet}
+	 */
+	getTweet(tweetid) {
+		return this.tweets.get(tweetid);
 	}
 
 	/**
@@ -1079,11 +1258,17 @@ class TwitterMarkLastRead {
 			[data-tmlr-retweet] {
 				border-left: 3px solid #7c98ff;
 			}
+			[data-tmlr-promoted] {
+				height: 0;
+			}
 			[data-tmlr-read][data-tmlr-retweet] {
 				border-left: 3px solid #7c98aa;
 			}
 			[data-tmlr-debug] {
 				border-right: 3px solid #ff907c;
+			}
+			[data-tmlr-read][data-tmlr-thread-id] {
+				border-left: 3px dotted #b0ff9c;
 			}
 			[data-tmlr-menuitem] {
 				color: white;
@@ -1155,29 +1340,35 @@ class TwitterMarkLastRead {
 	}
 
 	/**
-	 * @return {BigInt} The last read Tweet id.
+	 * @return {StringBigInt} The last read Tweet id.
 	 */
 	getLastReadId() {
 		return this.lastReadId;
 	}
 
 	/**
-	 * @param tweetId {BigInt} The last read Tweet id.
+	 * @param tweetId {StringBigInt} The last read Tweet id.
 	 */
 	setLastReadId(tweetId) {
 		// @todo
-		deb.debug('TwitterMarkLastRead::setLastReadId', '' + tweetId);
-		this.lastReadId = '' + tweetId;
-		this.settings.set('lastread', this.lastReadId);
+		deb.debug('TwitterMarkLastRead::setLastReadId 1', '' + tweetId);
+		this.lastReadId = new StringBigInt(tweetId);
+		this.settings.set('lastread', this.getLastReadId());
+		deb.debug('TwitterMarkLastRead::setLastReadId 2', '' + tweetId);
 		// Mark all current tweets as read.
 		this.getTweets().forEach((tweet) => {
+			deb.debug('TwitterMarkLastRead::setLastReadId 3', '' + tweetId, tweet);
 			if (!tweet.hasElement()) {
 				deb.debug('TwitterMarkLastRead::setLastReadId::tweet', 'has no element');
 				this.removeTweet(tweet.getId());
 				return;
 			}
 			deb.debug('TwitterMarkLastRead::setLastReadId::tweet recheck', tweet);
-			tweet.checkTweet(this.lastReadId, true);
+			try {
+				tweet.checkTweet(this.getLastReadId(), true);
+			} catch (error) {
+				console.error(error);
+			}
 		});
 	}
 
@@ -1274,8 +1465,9 @@ class SettingsUI {
 
 
 // Setup debug output with filter.
-const deb = new Debug(true, /Settings|Tweet::popupHook|setLastReadId|ScrollToLastRead|TweetMenu|Tweet::init::end/);
-//const deb = new Debug(true, /TwitterMarkLastRead::/);
+const deb = new Debug(/Settings|ScrollToLastRead|Tweet::checkTweet/);
+// deb.enable(); //@debug
+//const deb = new Debug(/TwitterMarkLastRead::/);
 
 /*
  * We only want to load when the timeline is ordered on latest tweets
@@ -1299,6 +1491,3 @@ const await_selector_tmlr = new AwaitSelectorMatchObserver(
 		}
 	}
 )
-
-
-console.log('end scr');
