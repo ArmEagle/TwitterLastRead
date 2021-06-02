@@ -303,7 +303,7 @@ class Tweet {
 
 		// Check for a span element containing "Promoted".
 		return Array.from(this.element.querySelectorAll('span')).filter(
-			(span) => span.textContent.indexOf('Promoted') >= 0
+			(span) => span.textContent.indexOf('Promoted') >= 0 && span.textContent.replace('Promoted', '').trim().length === 0
 		).length > 0;
 	}
 

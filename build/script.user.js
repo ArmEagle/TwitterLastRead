@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name	Twitter - Mark Last Read
-// @version 1.3.2
+// @version 1.3.3
 // @grant   none
 // @include https://*twitter.com/*
 // ==/UserScript==
@@ -526,7 +526,7 @@ class Tweet {
 
 		// Check for a span element containing "Promoted".
 		return Array.from(this.element.querySelectorAll('span')).filter(
-			(span) => span.textContent.indexOf('Promoted') >= 0
+			(span) => span.textContent.indexOf('Promoted') >= 0 && span.textContent.replace('Promoted', '').trim().length === 0
 		).length > 0;
 	}
 
