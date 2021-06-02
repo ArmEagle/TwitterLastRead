@@ -301,10 +301,10 @@ class Tweet {
 	isPromotedElement() {
 		deb.debug('Tweet::isPromotedElement');
 
-		// Is a span element containing "Promoted", in a div that follows on an svg (for the arrow icon),
-		// in a div, that follows a div with role=group (the bar with comment/retweet/like buttons and stats).
-		const span = this.element.querySelector('div[role="group"] ~ div > svg ~ div > span');
-		return span && span.textContent.indexOf('Promoted') >= 0;
+		// Check for a span element containing "Promoted".
+		return Array.from(this.element.querySelectorAll('span')).filter(
+			(span) => span.textContent.indexOf('Promoted') >= 0
+		).length > 0;
 	}
 
 	/**

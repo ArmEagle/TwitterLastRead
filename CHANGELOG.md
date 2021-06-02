@@ -1,5 +1,9 @@
 # Changelog
 
+## 2021-06-02 - version 1.3.2
+### Fixed
+- The "Promoted" text in a Tweet was moved. Now Promoted Tweets are detected again.
+
 ## 2021-04-07 - version 1.3.1
 ### Fixed
 - Fixed typo in the install link text in the README.
