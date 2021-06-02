@@ -1,5 +1,9 @@
 # Changelog
 
+## 2021-06-02 - version 1.3.3
+### Fixed
+- Now only marking actual Promoted Tweets as promoted. Well, unless someone only tweets "Promoted". But that's their loss.
+
 ## 2021-06-02 - version 1.3.2
 ### Fixed
 - The "Promoted" text in a Tweet was moved. Now Promoted Tweets are detected again.
