@@ -99,14 +99,14 @@ class TweetMenu {
 
 
 		const icon_div = document.createElement('div');
-		icon_div.setAttribute('style', 'display: flex; max-width: 28px;');
+		icon_div.setAttribute('style', 'display: flex; max-width: 28px; width: 21px; padding-right: 10px;');
 
 		const icon = document.createElementNS(this.SVG_NS, 'svg');
 		icon.setAttributeNS(null, 'viewBox', '0 0 24 24');
-		icon.setAttributeNS(null, 'stroke-width', '2');
-		icon.setAttributeNS(null, 'stroke', 'rgb(136, 153, 166)');
+		icon.setAttributeNS(null, 'stroke-width', '3');
+		icon.setAttributeNS(null, 'stroke', 'white');
 		icon.setAttributeNS(null, 'fill', 'none');
-		icon.setAttributeNS(null, 'style', 'margin-right: 10px;');
+		icon.setAttributeNS(null, 'style', 'margin-right: 6px;');
 		icon_div.appendChild(icon);
 		const icon_g = document.createElementNS(this.SVG_NS, 'g');
 		icon.appendChild(icon_g);

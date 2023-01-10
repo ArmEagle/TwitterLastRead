@@ -299,7 +299,7 @@ class Tweet {
 	 * @return {boolean}
 	 */
 	isPromotedElement() {
-		deb.debug('Tweet::isPromotedElement');
+		deb.debug('Tweet::isPromotedElement', this.element, this.element.innerHTML);
 
 		// Check for a span element containing "Promoted".
 		return Array.from(this.element.querySelectorAll('span')).filter(

@@ -181,7 +181,7 @@ class TwitterMarkLastRead {
 			}
 			[data-tmlr-menuitem] {
 				color: white;
-				padding: 15px;
+				padding: 12px 16px;
 				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
 				font-size: 15px;
 				cursor: pointer;
@@ -222,7 +222,7 @@ class TwitterMarkLastRead {
 	 * @return {bool}
 	 */
 	isChronologicalStream() {
-		// Home needs "Latest Tweets" set (in a h2).
+		// Home needs "Following" set (in a h2).
 		if (location.pathname === '/home') {
 			return !!this.getLatestTweetsHeader();
 		}
@@ -236,11 +236,11 @@ class TwitterMarkLastRead {
 	}
 
 	/**
-	 * @return {HTMLElement|null} The h2 header with "Latest Tweets" content, or null.
+	 * @return {HTMLElement|null} The h2 header with "Following" content, or null.
 	 */
 	getLatestTweetsHeader() {
 		const headers = [... document.querySelectorAll('h2')].filter((h) => {
-			return h.textContent.indexOf('Latest Tweets') >= 0;
+			return h.textContent.indexOf('Following') >= 0;
 		});
 
 		return headers.length > 0
@@ -308,7 +308,7 @@ class TwitterMarkLastRead {
 
 		const header = this.getLatestTweetsHeader();
 		if (!header) {
-			deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find "Latest Tweets" header!');
+			deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find "Following" header!');
 		}
 
 		// Go up into the DOM tree until we can find a [role="button"].
@@ -374,13 +374,13 @@ class SettingsUI {
 
 
 // Setup debug output with filter.
-const deb = new Debug(/Settings|ScrollToLastRead|Tweet::checkTweet/);
-// deb.enable(); //@debug
+const deb = new Debug(/Settings|ScrollToLastRead|TwitterMarkLastRead::handleTweet|Tweet::isPromotedElement/);
+//deb.enable(); //@debug
 //const deb = new Debug(/TwitterMarkLastRead::/);
 
 /*
- * We only want to load when the timeline is ordered on latest tweets
- * But the "Latest Tweets" header loads slowly. So await DOM changes.
+ * We only want to load when the timeline is ordered on Following
+ * But the "Following" header loads slowly. So await DOM changes.
  * TODO : change this
  */
 let tmlr;
@@ -388,7 +388,7 @@ const await_selector_tmlr = new AwaitSelectorMatchObserver(
 	'h2[role="heading"]',
 	(element) => {
 		if ([... document.querySelectorAll('h2')].filter((h) => {
-			return h.textContent.indexOf('Latest Tweets') >= 0;
+			return h.textContent.indexOf('Following') >= 0;
 		}).length > 0) {
 
 			try {

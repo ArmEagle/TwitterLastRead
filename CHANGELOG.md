@@ -1,5 +1,10 @@
 # Changelog
 
+## 2023-01-10 - version 1.3.4
+### Fixed
+- Twitter very recently changed the "Latest Tweets" header to "Following" which is a trigger for the script to start. Changed accordingly.
+- The check mark begore the "Mark as Read" menu item is shown again.
+
 ## 2021-06-02 - version 1.3.3
 ### Fixed
 - Now only marking actual Promoted Tweets as promoted. Well, unless someone only tweets "Promoted". But that's their loss.
