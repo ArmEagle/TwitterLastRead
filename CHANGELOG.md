@@ -1,5 +1,11 @@
 # Changelog
 
+## 2023-02-06 - version 1.4.0
+### Fixed
+- Twitter changed structure slightly again. The "Mark as read" context menu item is shown again.
+### Not yet fixed
+- The scroll to last read button doesn't have a position anymore.
+
 ## 2023-01-10 - version 1.3.4
 ### Fixed
 - Twitter very recently changed the "Latest Tweets" header to "Following" which is a trigger for the script to start. Changed accordingly.
