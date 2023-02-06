@@ -239,7 +239,7 @@ class TwitterMarkLastRead {
 	 * @return {HTMLElement|null} The h2 header with "Following" content, or null.
 	 */
 	getLatestTweetsHeader() {
-		const headers = [... document.querySelectorAll('h2')].filter((h) => {
+		const headers = [... document.querySelectorAll('a[role="tab"] span')].filter((h) => {
 			return h.textContent.indexOf('Following') >= 0;
 		});
 
@@ -387,7 +387,7 @@ let tmlr;
 const await_selector_tmlr = new AwaitSelectorMatchObserver(
 	'h2[role="heading"]',
 	(element) => {
-		if ([... document.querySelectorAll('h2')].filter((h) => {
+		if ([... document.querySelectorAll('a[role="tab"] span')].filter((h) => {
 			return h.textContent.indexOf('Following') >= 0;
 		}).length > 0) {
 
