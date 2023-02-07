@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name	Twitter - Mark Last Read
-// @version 1.4.0
+// @version 1.4.1
 // @grant   none
 // @include https://*twitter.com/*
 // ==/UserScript==
@@ -1290,13 +1290,18 @@ class TwitterMarkLastRead {
 				border-color: rgba(0, 0, 0, 0);
 				border-style: solid;
 				align-items: center;
+				cursor: pointer;
+			}
+
+			[data-tmlr-scrolldown-button] svg>g>path {
+				fill: rgb(29, 161, 242);
 			}
 			[data-scrolltolastread-running] [data-tmlr-scrolldown-button] {
 				opacity: 0.5;
 				cursor: wait;
 			}
-			[data-tmlr-scrolldown-button]:hover {
-				background-color: rgba(69, 121, 242, 0.1);
+			[data-tmlr-scrolldown-button]:hover svg>g>path {
+				fill: white;
 			}
 			[data-tmlr-scrolldown-button] [data-tmlr-inner] {
 				display: flex;
@@ -1397,25 +1402,10 @@ class TwitterMarkLastRead {
 			return;
 		}
 
-		const header = this.getLatestTweetsHeader();
-		if (!header) {
-			deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find "Following" header!');
+		const target = document.querySelector('[role="tablist"]');
+		if (!target) {
+			deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find target!');
 		}
-
-		// Go up into the DOM tree until we can find a [role="button"].
-		let walk = header;
-		while (!walk.querySelector('[role="button"]')) {
-			walk = walk.parentNode;
-			if (walk.tagName.toLowerCase() === 'body') {
-				deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find button in header!');
-			}
-		}
-		// Then the parent of that button element is our target.
-		// Make wider and change flex orientation.
-		const other_button = walk.querySelector('[role="button"]');
-		const target = other_button.parentNode;
-		target.style['min-width'] = '80px';
-		target.style['flex-direction'] = 'row';
 
 		const wrapper = document.createElement('div');
 		wrapper.setAttribute('role', 'button');
@@ -1431,11 +1421,11 @@ class TwitterMarkLastRead {
 		svg.appendChild(g);
 		const path1 = document.createElementNS(this.SVG_NS, 'path');
 		path1.setAttributeNS(null, 'd', 'M30,0H2C0.895,0,0,0.895,0,2v28c0,1.105,0.895,2,2,2h28c1.104,0,2-0.895,2-2V2C32,0.895,31.104,0,30,0z M30,30H2V2h28V30z');
-		path1.setAttributeNS(null, 'fill', 'rgb(29, 161, 242)');
+		// path1.setAttributeNS(null, 'fill', 'rgb(29, 161, 242)');
 		g.appendChild(path1);
 		const path2 = document.createElementNS(this.SVG_NS, 'path');
 		path2.setAttributeNS(null, 'd', 'M27,12.106   c0-0.564-0.489-1.01-1.044-0.995H6.013c-0.887-0.024-1.38,1.07-0.742,1.702l9.999,9.9c0.394,0.39,1.031,0.376,1.429,0l9.991-9.892   C26.879,12.64,27,12.388,27,12.106z M15.984,20.591L8.418,13.1H23.55L15.984,20.591z');
-		path2.setAttributeNS(null, 'fill', 'rgb(29, 161, 242)');
+		// path2.setAttributeNS(null, 'fill', 'rgb(29, 161, 242)');
 		g.appendChild(path2);
 		inner.appendChild(svg);
 
@@ -1444,11 +1434,11 @@ class TwitterMarkLastRead {
 			this.scrollToLastRead.start();
 		});
 
-		target.insertBefore(wrapper, other_button);
+		target.append(wrapper);
+
+		deb.debug('TwitterMarkLastRead::addScrolldownButton: created button:', wrapper);
 	}
 }
-
-
 
 
 class SettingsUI {
@@ -1465,7 +1455,7 @@ class SettingsUI {
 
 
 // Setup debug output with filter.
-const deb = new Debug(/Settings|ScrollToLastRead|TwitterMarkLastRead::handleTweet|Tweet::isPromotedElement/);
+const deb = new Debug(/Settings|ScrollToLastRead|TwitterMarkLastRead::addScrolldownButton/);
 //deb.enable(); //@debug
 //const deb = new Debug(/TwitterMarkLastRead::/);
 

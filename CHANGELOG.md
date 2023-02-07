@@ -1,10 +1,14 @@
 # Changelog
 
+## 2023-02-07 - version 1.4.1
+### Fixed
+- The 'scroll to last read' button has found a new spot.
+
 ## 2023-02-06 - version 1.4.0
 ### Fixed
 - Twitter changed structure slightly again. The "Mark as read" context menu item is shown again.
 ### Not yet fixed
-- The scroll to last read button doesn't have a position anymore.
+- ~~The scroll to last read button doesn't have a position anymore.~~ Fixed in 1.4.1.
 
 ## 2023-01-10 - version 1.3.4
 ### Fixed
