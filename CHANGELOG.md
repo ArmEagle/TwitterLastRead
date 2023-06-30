@@ -1,5 +1,10 @@
 # Changelog
 
+## 2023-06-30 - version 1.5.0
+### Changed
+- The "Mark as Read" option should show in the menu nog for the very first loaded Tweets.
+- Several code improvements.
+
 ## 2023-02-07 - version 1.4.1
 ### Fixed
 - The 'scroll to last read' button has found a new spot.

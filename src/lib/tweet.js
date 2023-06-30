@@ -61,23 +61,28 @@ class Tweet {
 		// This menu is stored independently from the tweet.
 		// Pass 'active' tweet id to TMLR so it knows for which Tweet the menu was opened.
 		if (this.isNormal()) {
-			const popupHook = this.element.querySelector(this.selector_more_menu);
-			if (!popupHook) {
-				throw new TweetException('Could not find Tweet context menu dropdown hook.', {
-					tweet: this,
-				});
-			} else {
-				popupHook.addEventListener('click', (event) => {
-					deb.debug('Tweet::popupHook', event, this.getId());
-					this.tmlr.setPopupActiveTweet(this);
-				});
-			}
+			// Sometimes the element is loaded a bit later. Especially for the initially loaded Tweets.
+			// Adding a slight delay seems to help.
+			window.setTimeout(() => {
+				const dropdownHook = this.element.querySelector(this.selector_more_menu);
+				if (!dropdownHook) {
+					throw new TweetException('Could not find Tweet context menu dropdown hook.', {
+						tweet: this,
+						element: this.element,
+					});
+				} else {
+					dropdownHook.addEventListener('click', (event) => {
+						deb.debug('Tweet::popupHook', event, this.getId());
+						this.tmlr.setPopupActiveTweet(this);
+					});
+				}
+			}, 100);
 		} else {
 			// Reset for other tweet types so we don't add the "Mark all Read" button elsewhere once this is set once.
 			this.tmlr.setPopupActiveTweet(null);
 		}
 
-		// Reset active tweet when clicking the in the tweet container.
+		// Reset active tweet when clicking in the tweet container.
 		// This prevents the active tweet causing the "Mark all Read" button to appear for subsequent other element
 		// clicks like when clicking on "Retweet".
 		this.element.addEventListener('click', (event) => {
@@ -246,7 +251,8 @@ class Tweet {
 			return this.id;
 		}
 
-		const time_link = this.element.querySelector('time').closest('a');
+		const time_element = this.element.querySelector('time');
+		const time_link = time_element ? time_element.closest('a') : null;
 		if (!time_link) {
 			throw new TweetException('Time element not found', {
 				tweet: this,

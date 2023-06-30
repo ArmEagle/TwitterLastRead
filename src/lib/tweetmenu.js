@@ -69,7 +69,7 @@ class TweetMenu {
 	addMenuItems() {
 		const activeTweet = this.tmlr.getPopupActiveTweet();
 		if (!activeTweet) {
-			console.error('No active tweet found to set as last read');
+			console.error('No active tweet found to add menu item');
 			return;
 		}
 		if (activeTweet.isNormal()) {

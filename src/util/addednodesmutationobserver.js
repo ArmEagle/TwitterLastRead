@@ -35,9 +35,16 @@ class AddedNodesMutationObserver {
 			this.observer = new MutationObserver((mutationsList, observer) => {
 				for (let mutation of mutationsList) {
 					if (mutation.type === 'childList' && typeof mutation.addedNodes !== 'undefined') {
-						mutation.addedNodes.forEach((element) => {
-							this.callback(element);
-						});
+						// Catch exceptions here since we're in a callback outside of the normal execution loop.
+						try {
+							mutation.addedNodes.forEach((element) => {
+								this.callback(element);
+							});
+						} catch (exception) {
+							exception instanceof TweetException
+								? console.error(exception.getDetails(), exception)
+								: console.error(exception)
+						}
 					}
 				}
 			});

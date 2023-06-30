@@ -1,7 +1,16 @@
 class TweetException extends Error {
 	constructor(message, details) {
-		this.details = details;
+		super(message);
 
-		Error(message);
+		this.name = this.constructor.name;
+		this.details = details;
+	}
+
+	/**
+	 * Return the passed details.
+	 * @returns object|null
+	 */
+	getDetails() {
+		return this.details;
 	}
 }

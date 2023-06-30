@@ -1,14 +1,23 @@
 // ==UserScript==
 // @name	Twitter - Mark Last Read
-// @version 1.4.1
+// @version 1.5.0
 // @grant   none
 // @include https://*twitter.com/*
 // ==/UserScript==
 class TweetException extends Error {
 	constructor(message, details) {
-		this.details = details;
+		super(message);
 
-		Error(message);
+		this.name = this.constructor.name;
+		this.details = details;
+	}
+
+	/**
+	 * Return the passed details.
+	 * @returns object|null
+	 */
+	getDetails() {
+		return this.details;
 	}
 }
 class Events {}
@@ -284,23 +293,28 @@ class Tweet {
 		// This menu is stored independently from the tweet.
 		// Pass 'active' tweet id to TMLR so it knows for which Tweet the menu was opened.
 		if (this.isNormal()) {
-			const popupHook = this.element.querySelector(this.selector_more_menu);
-			if (!popupHook) {
-				throw new TweetException('Could not find Tweet context menu dropdown hook.', {
-					tweet: this,
-				});
-			} else {
-				popupHook.addEventListener('click', (event) => {
-					deb.debug('Tweet::popupHook', event, this.getId());
-					this.tmlr.setPopupActiveTweet(this);
-				});
-			}
+			// Sometimes the element is loaded a bit later. Especially for the initially loaded Tweets.
+			// Adding a slight delay seems to help.
+			window.setTimeout(() => {
+				const dropdownHook = this.element.querySelector(this.selector_more_menu);
+				if (!dropdownHook) {
+					throw new TweetException('Could not find Tweet context menu dropdown hook.', {
+						tweet: this,
+						element: this.element,
+					});
+				} else {
+					dropdownHook.addEventListener('click', (event) => {
+						deb.debug('Tweet::popupHook', event, this.getId());
+						this.tmlr.setPopupActiveTweet(this);
+					});
+				}
+			}, 100);
 		} else {
 			// Reset for other tweet types so we don't add the "Mark all Read" button elsewhere once this is set once.
 			this.tmlr.setPopupActiveTweet(null);
 		}
 
-		// Reset active tweet when clicking the in the tweet container.
+		// Reset active tweet when clicking in the tweet container.
 		// This prevents the active tweet causing the "Mark all Read" button to appear for subsequent other element
 		// clicks like when clicking on "Retweet".
 		this.element.addEventListener('click', (event) => {
@@ -469,7 +483,8 @@ class Tweet {
 			return this.id;
 		}
 
-		const time_link = this.element.querySelector('time').closest('a');
+		const time_element = this.element.querySelector('time');
+		const time_link = time_element ? time_element.closest('a') : null;
 		if (!time_link) {
 			throw new TweetException('Time element not found', {
 				tweet: this,
@@ -617,7 +632,7 @@ class TweetMenu {
 	addMenuItems() {
 		const activeTweet = this.tmlr.getPopupActiveTweet();
 		if (!activeTweet) {
-			console.error('No active tweet found to set as last read');
+			console.error('No active tweet found to add menu item');
 			return;
 		}
 		if (activeTweet.isNormal()) {
@@ -747,9 +762,16 @@ class AddedNodesMutationObserver {
 			this.observer = new MutationObserver((mutationsList, observer) => {
 				for (let mutation of mutationsList) {
 					if (mutation.type === 'childList' && typeof mutation.addedNodes !== 'undefined') {
-						mutation.addedNodes.forEach((element) => {
-							this.callback(element);
-						});
+						// Catch exceptions here since we're in a callback outside of the normal execution loop.
+						try {
+							mutation.addedNodes.forEach((element) => {
+								this.callback(element);
+							});
+						} catch (exception) {
+							exception instanceof TweetException
+								? console.error(exception.getDetails(), exception)
+								: console.error(exception)
+						}
 					}
 				}
 			});
@@ -1167,17 +1189,28 @@ class TwitterMarkLastRead {
 	findTweetElements(element) {
 		deb.debug('TwitterMarkLastRead::findTweetElement', element);
 
-		if (element.tagName.toLowerCase() === 'article') {
+		if (element.tagName.toLowerCase() === 'article' && this.isExpectedToBeTweet(element)) {
 			return [element];
 		}
 
 		let tweet = element.closest('article');
-		if (tweet) {
+		if (tweet && this.isExpectedToBeTweet(tweet)) {
 			return [tweet];
 		}
 
 		let tweets = element.querySelectorAll('article');
+		tweets = Array.from(tweets).filter((e) => this.isExpectedToBeTweet(e));
 		return tweets;
+	}
+
+	/**
+	 * Do an early check whether the element is expected to be a Tweet element.
+	 * @param {HTMLElement} element
+	 * @returns boolean
+	 */
+	isExpectedToBeTweet(element) {
+		// Filter out all already hidden elements. uBlock Origin has custom style rules to block ads.
+		return element.clientHeight > 0;
 	}
 
 	/**
@@ -1369,11 +1402,7 @@ class TwitterMarkLastRead {
 				return;
 			}
 			deb.debug('TwitterMarkLastRead::setLastReadId::tweet recheck', tweet);
-			try {
-				tweet.checkTweet(this.getLastReadId(), true);
-			} catch (error) {
-				console.error(error);
-			}
+			tweet.checkTweet(this.getLastReadId(), true);
 		});
 	}
 
@@ -1405,6 +1434,7 @@ class TwitterMarkLastRead {
 		const target = document.querySelector('[role="tablist"]');
 		if (!target) {
 			deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find target!');
+			return;
 		}
 
 		const wrapper = document.createElement('div');
@@ -1455,7 +1485,7 @@ class SettingsUI {
 
 
 // Setup debug output with filter.
-const deb = new Debug(/Settings|ScrollToLastRead|TwitterMarkLastRead::addScrolldownButton/);
+const deb = new Debug(/Settings|ScrollToLastRead|Tweet::popupHook/);
 //deb.enable(); //@debug
 //const deb = new Debug(/TwitterMarkLastRead::/);
 
@@ -1472,12 +1502,8 @@ const await_selector_tmlr = new AwaitSelectorMatchObserver(
 			return h.textContent.indexOf('Following') >= 0;
 		}).length > 0) {
 
-			try {
-				await_selector_tmlr.disconnect();
-				tmlr = new TwitterMarkLastRead();
-			} catch (e) {
-				console.error('error', e);
-			}
+			await_selector_tmlr.disconnect();
+			tmlr = new TwitterMarkLastRead();
 		}
 	}
 )

@@ -76,17 +76,28 @@ class TwitterMarkLastRead {
 	findTweetElements(element) {
 		deb.debug('TwitterMarkLastRead::findTweetElement', element);
 
-		if (element.tagName.toLowerCase() === 'article') {
+		if (element.tagName.toLowerCase() === 'article' && this.isExpectedToBeTweet(element)) {
 			return [element];
 		}
 
 		let tweet = element.closest('article');
-		if (tweet) {
+		if (tweet && this.isExpectedToBeTweet(tweet)) {
 			return [tweet];
 		}
 
 		let tweets = element.querySelectorAll('article');
+		tweets = Array.from(tweets).filter((e) => this.isExpectedToBeTweet(e));
 		return tweets;
+	}
+
+	/**
+	 * Do an early check whether the element is expected to be a Tweet element.
+	 * @param {HTMLElement} element
+	 * @returns boolean
+	 */
+	isExpectedToBeTweet(element) {
+		// Filter out all already hidden elements. uBlock Origin has custom style rules to block ads.
+		return element.clientHeight > 0;
 	}
 
 	/**
@@ -278,11 +289,7 @@ class TwitterMarkLastRead {
 				return;
 			}
 			deb.debug('TwitterMarkLastRead::setLastReadId::tweet recheck', tweet);
-			try {
-				tweet.checkTweet(this.getLastReadId(), true);
-			} catch (error) {
-				console.error(error);
-			}
+			tweet.checkTweet(this.getLastReadId(), true);
 		});
 	}
 
@@ -314,6 +321,7 @@ class TwitterMarkLastRead {
 		const target = document.querySelector('[role="tablist"]');
 		if (!target) {
 			deb.debug('TwitterMarkLastRead::addScrolldownButton: Could not find target!');
+			return;
 		}
 
 		const wrapper = document.createElement('div');
@@ -364,7 +372,7 @@ class SettingsUI {
 
 
 // Setup debug output with filter.
-const deb = new Debug(/Settings|ScrollToLastRead|TwitterMarkLastRead::addScrolldownButton/);
+const deb = new Debug(/Settings|ScrollToLastRead|Tweet::popupHook/);
 //deb.enable(); //@debug
 //const deb = new Debug(/TwitterMarkLastRead::/);
 
@@ -381,12 +389,8 @@ const await_selector_tmlr = new AwaitSelectorMatchObserver(
 			return h.textContent.indexOf('Following') >= 0;
 		}).length > 0) {
 
-			try {
-				await_selector_tmlr.disconnect();
-				tmlr = new TwitterMarkLastRead();
-			} catch (e) {
-				console.error('error', e);
-			}
+			await_selector_tmlr.disconnect();
+			tmlr = new TwitterMarkLastRead();
 		}
 	}
 )
