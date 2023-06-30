@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name	Twitter - Mark Last Read
-// @version 1.5.0
+// @version 1.5.1
 // @grant   none
 // @include https://*twitter.com/*
 // ==/UserScript==
@@ -1171,6 +1171,10 @@ class TwitterMarkLastRead {
 		deb.debug('TwitterMarkLastRead::handleAddedNode', element);
 		this.addScrolldownButton();
 
+		if (!this.isCorrectPath()) {
+			return;
+		}
+
 		const tweetElements = this.findTweetElements(element);
 		if (!tweetElements || !tweetElements.length) {
 			return;
@@ -1201,6 +1205,14 @@ class TwitterMarkLastRead {
 		let tweets = element.querySelectorAll('article');
 		tweets = Array.from(tweets).filter((e) => this.isExpectedToBeTweet(e));
 		return tweets;
+	}
+
+	/**
+	 * Only act when we're on the main thread page. Not in notifications.
+	 * @returns boolean
+	 */
+	isCorrectPath() {
+		return location.pathname === '/home';
 	}
 
 	/**

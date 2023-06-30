@@ -1,5 +1,9 @@
 # Changelog
 
+## 2023-06-30 - version 1.5.2
+### Changed
+- Tweet detection now only works for the main thread because things go wrong in the Notifications view.
+
 ## 2023-06-30 - version 1.5.0
 ### Changed
 - The "Mark as Read" option should show in the menu nog for the very first loaded Tweets.
