@@ -1,5 +1,9 @@
 # Changelog
 
+## 2023-10-29 - version 1.6.0
+### Changed
+- Activation of the script now also works for mobile view on a small screen.
+
 ## 2023-06-30 - version 1.5.2
 ### Changed
 - Tweet detection now only works for the main thread because things go wrong in the Notifications view.

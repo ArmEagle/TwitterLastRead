@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name	Twitter - Mark Last Read
-// @version 1.5.1
+// @version 1.6.0
 // @grant   none
 // @include https://*twitter.com/*
 // ==/UserScript==

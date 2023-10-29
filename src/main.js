@@ -388,16 +388,16 @@ const deb = new Debug(/Settings|ScrollToLastRead|Tweet::popupHook/);
 //deb.enable(); //@debug
 //const deb = new Debug(/TwitterMarkLastRead::/);
 
+
 /*
  * We only want to load when the timeline is ordered on Following
  * But the "Following" header loads slowly. So await DOM changes.
- * TODO : change this
  */
 let tmlr;
 const await_selector_tmlr = new AwaitSelectorMatchObserver(
-	'h2[role="heading"]',
+	'a[href="/home"][role="tab"]',
 	(element) => {
-		if ([... document.querySelectorAll('a[role="tab"] span')].filter((h) => {
+		if ([... element.querySelectorAll('span')].filter((h) => {
 			return h.textContent.indexOf('Following') >= 0;
 		}).length > 0) {
 
