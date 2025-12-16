@@ -99,7 +99,7 @@ class TweetMenu {
 
 
 		const icon_div = document.createElement('div');
-		icon_div.setAttribute('style', 'display: flex; max-width: 28px; width: 21px; padding-right: 10px;');
+		icon_div.setAttribute('style', 'display: flex; max-width: 28px; width: 28px; padding-right: 6px;');
 
 		const icon = document.createElementNS(this.SVG_NS, 'svg');
 		icon.setAttributeNS(null, 'viewBox', '0 0 24 24');

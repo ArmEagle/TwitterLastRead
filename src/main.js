@@ -267,7 +267,7 @@ class TwitterMarkLastRead {
 	 * @return {HTMLElement|null} The h2 header with "Following" content, or null.
 	 */
 	getLatestTweetsHeader() {
-		const headers = [... document.querySelectorAll('a[role="tab"] span')].filter((h) => {
+		const headers = [... document.querySelectorAll('[role="tab"]')].filter((h) => {
 			return h.textContent.indexOf('Following') >= 0;
 		});
 
@@ -369,7 +369,6 @@ class TwitterMarkLastRead {
 	}
 }
 
-
 class SettingsUI {
 	constructor() {
 		deb.debug('Settings::constructor'); //@debug
@@ -395,11 +394,19 @@ const deb = new Debug(/Settings|ScrollToLastRead|Tweet::popupHook/);
  */
 let tmlr;
 const await_selector_tmlr = new AwaitSelectorMatchObserver(
-	'a[href="/home"][role="tab"]',
+	'[role="navigation"] [role="presentation"]:nth-child(2) [role="tab"]',
 	(element) => {
 		if ([... element.querySelectorAll('span')].filter((h) => {
 			return h.textContent.indexOf('Following') >= 0;
 		}).length > 0) {
+
+			// Focus 'Following' when it doesn't have focus yet - stupid Twitter! (2025-12-15)
+			if (element.matches('[aria-selected="false"]')) {
+				element.dispatchEvent(new Event('click', {
+					bubbles: true,
+					detail: element,
+				}));
+			}
 
 			await_selector_tmlr.disconnect();
 			tmlr = new TwitterMarkLastRead();

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2025-12-16 - version 1.8.0
+### Changed
+- Updated the "Following" tab selector to make the script work again. Fixing issue #9.
+- Now focusing the "Following" tab on load when it doesn't have (default) focus yet - stupid Twitter!
+- Increased the size of the "Mark as read" icon.
+- `AwaitSelectorMatchObserver` now also finds already existing elements for selector.
+- Updated the VSCode build task.
+
+## 2024-05-18 - version 1.7.0
+### Changed
+- Added x.com as domain for Twitter.
+
 ## 2023-10-29 - version 1.6.0
 ### Changed
 - Activation of the script now also works for mobile view on a small screen.

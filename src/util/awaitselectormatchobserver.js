@@ -17,6 +17,14 @@ class AwaitSelectorMatchObserver {
 			rootSelector = 'body';
 		}
 
+		// Maybe it exists already.
+		let element = document.querySelector(rootSelector + ' ' + this.selector);
+		if (element) {
+			this.nodeAddedHandler(element);
+
+			return;
+		}
+
 		this.addedNodesMutationObserver = new AddedNodesMutationObserver(
 			rootSelector,
 			(element) => {
@@ -48,7 +56,7 @@ class AwaitSelectorMatchObserver {
 			this.callbackWrapper(element);
 		});
 	}
-	
+
 	/**
 	 * Wraps set callback function.
 	 */
@@ -56,11 +64,13 @@ class AwaitSelectorMatchObserver {
 		deb.debug('AwaitSelectorMatchObserver::callbackWrapper', element);
 		this.callback(element);
 	}
-	
+
 	/**
 	 * Stop observing.
 	 */
 	disconnect() {
-		this.addedNodesMutationObserver.disconnect();
+		if (typeof this.addedNodesMutationObserver !== 'undefined') {
+			this.addedNodesMutationObserver.disconnect();
+		}
 	}
 }

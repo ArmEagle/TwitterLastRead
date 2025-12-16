@@ -6,7 +6,7 @@
 		{
 			"label": "Build",
 			"type": "shell",
-			"command": "cat src/**/*.js | sc build/script.user.js ; cat src/main.js | Add-Content -Path build/script.user.js ; cat build/script.user.js | clip"
+			"command": "Clear-Content -Path build/script.user.js ; cat src/**/*.js | Add-Content -Path build/script.user.js ; cat src/main.js | Add-Content -Path build/script.user.js ; cat build/script.user.js | clip"
 		}
 	]
 }
