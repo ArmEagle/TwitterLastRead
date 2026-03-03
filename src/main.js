@@ -396,9 +396,11 @@ let tmlr;
 const await_selector_tmlr = new AwaitSelectorMatchObserver(
 	'[role="navigation"] [role="presentation"]:nth-child(2) [role="tab"]',
 	(element) => {
-		if ([... element.querySelectorAll('span')].filter((h) => {
+		// Following is in a `span` element when not focused.
+		if ([... element.querySelectorAll('div,span')].filter((h) => {
 			return h.textContent.indexOf('Following') >= 0;
 		}).length > 0) {
+			await_selector_tmlr.disconnect();
 
 			// Focus 'Following' when it doesn't have focus yet - stupid Twitter! (2025-12-15)
 			if (element.matches('[aria-selected="false"]')) {
@@ -408,8 +410,12 @@ const await_selector_tmlr = new AwaitSelectorMatchObserver(
 				}));
 			}
 
-			await_selector_tmlr.disconnect();
 			tmlr = new TwitterMarkLastRead();
+
+			// Prevent TweetMenu addition for this dropdown.
+			element.addEventListener('click', () => {
+				tmlr.setPopupActiveTweet(null);
+			});
 		}
 	}
 )

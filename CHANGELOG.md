@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-03-03 - version 1.8.1
+### Changed
+- Updated the "Following" tab selector to make the script work, yet, again. Fixing issue #10.
+- Tweet menu will not show on the "Following" dropdown.
+
 ## 2025-12-16 - version 1.8.0
 ### Changed
 - Updated the "Following" tab selector to make the script work again. Fixing issue #9.
