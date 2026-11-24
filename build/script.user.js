@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name	Twitter - Mark Last Read
-// @version 1.9.0
+// @version 1.9.1
 // @grant   none
 // @include https://*twitter.com/*
 // @include https://*x.com/*
@@ -1490,10 +1490,16 @@ class TwitterMarkLastRead {
 			}
 			/*
 			 * UI from about 2026-11-23: the timeline is a virtualized list with absolute positioning, so the space
-			 * can't be removed. Show a black block instead, and don't let it be clicked.
+			 * can't be removed. Show a block with thick diagonal stripes instead, and don't let it be clicked.
 			 */
 			div[role="link"]:has(> article[data-tmlr-promoted]) {
-				background-color: #000;
+				background: repeating-linear-gradient(
+					-45deg,
+					#000 0 20px,
+					#1c1c1c 20px 40px
+				);
+				/* Don't paint under the (semi-transparent) bottom border: there the pattern repeats out of line. */
+				background-clip: padding-box;
 				pointer-events: none;
 			}
 			div[role="link"]:has(> article[data-tmlr-promoted]) > * {

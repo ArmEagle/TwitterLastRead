@@ -1,6 +1,10 @@
 # Changelog
 
-## 2026-11-23 - version 1.9.0
+## 2026-11-24 - version 1.9.1
+### Changed
+- Promoted Tweets (ads) in the new UI are now shown as a block with diagonal stripes, instead of a black block.
+
+## 2026-11-24 - version 1.9.0
 ### Fixed
 - Twitter UI (man tabs) changed around 2026-11-23 and is now supported.
 - Switching to the Following tab is improved.
