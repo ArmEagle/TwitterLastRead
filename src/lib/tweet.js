@@ -4,6 +4,13 @@
 class Tweet {
 
 	/**
+	 * @return {string} Selector for the "More" menu button in a Tweet.
+	 */
+	static get SELECTOR_MORE_MENU() {
+		return '[role="button"][aria-haspopup="menu"][aria-label="More"]';
+	}
+
+	/**
 	 * @param {TwitterMarkLastRead} tmlr
 	 * @param {HTMLElement} element Root tweet element.
 	 */
@@ -13,7 +20,7 @@ class Tweet {
 		this.tmlr = tmlr;
 		this.element = element;
 
-		this.selector_more_menu = '[role="button"][aria-haspopup="menu"][aria-label="More"]';
+		this.selector_more_menu = Tweet.SELECTOR_MORE_MENU;
 
 		this.key_tweet_markread_checked = 'data-tmlr-checked'; // Flag that marks that this tweet was checked.
 		this.tweet_handled_attribute = 'data-tmlr-handled'; // Flag that marks that this element has been handled.
@@ -57,27 +64,9 @@ class Tweet {
 	 */
 	addEventListeners() {
 		deb.debug('Tweet::addEventListeners');
-		// Listen to "more" menu dropdown opening.
-		// This menu is stored independently from the tweet.
-		// Pass 'active' tweet id to TMLR so it knows for which Tweet the menu was opened.
-		if (this.isNormal()) {
-			// Sometimes the element is loaded a bit later. Especially for the initially loaded Tweets.
-			// Adding a slight delay seems to help.
-			window.setTimeout(() => {
-				const dropdownHook = this.element.querySelector(this.selector_more_menu);
-				if (!dropdownHook) {
-					throw new TweetException('Could not find Tweet context menu dropdown hook.', {
-						tweet: this,
-						element: this.element,
-					});
-				} else {
-					dropdownHook.addEventListener('click', (event) => {
-						deb.debug('Tweet::popupHook', event, this.getId());
-						this.tmlr.setPopupActiveTweet(this);
-					});
-				}
-			}, 100);
-		} else {
+		// Opening of the "more" menu dropdown is detected with a delegated listener in
+		// `TwitterMarkLastRead::setupTweetMenuHook`, because Twitter can replace the button element.
+		if (!this.isNormal()) {
 			// Reset for other tweet types so we don't add the "Mark all Read" button elsewhere once this is set once.
 			this.tmlr.setPopupActiveTweet(null);
 		}

@@ -56,7 +56,60 @@ class TwitterMarkLastRead {
 			}
 		}
 
+		this.setupTweetMenuHook();
 		this.tweetMenuHandler = new TweetMenu(this);
+	}
+
+	/**
+	 * Listen (delegated, capture phase) for clicks on the "More" menu button of any Tweet, so we know for which
+	 * Tweet the popup menu is opened.
+	 * Delegation is used because Twitter can replace the button element after the Tweet was handled (especially
+	 * on initial page load), which would lose a listener attached directly to the button.
+	 */
+	setupTweetMenuHook() {
+		document.addEventListener('click', (event) => {
+			if (!(event.target instanceof Element)) {
+				return;
+			}
+			const button = event.target.closest(Tweet.SELECTOR_MORE_MENU);
+			if (!button) {
+				return;
+			}
+			const article = button.closest('article');
+			if (!article) {
+				return;
+			}
+
+			try {
+				const tweet = this.getTweetForElement(article);
+				deb.debug('Tweet::popupHook', event, tweet);
+				this.setPopupActiveTweet(tweet && tweet.isNormal() ? tweet : null);
+			} catch (exception) {
+				this.setPopupActiveTweet(null);
+				exception instanceof TweetException
+					? console.error(exception.getDetails(), exception)
+					: console.error(exception);
+			}
+		}, true);
+	}
+
+	/**
+	 * Return the Tweet object for a Tweet element. Handles the element first when it wasn't handled yet.
+	 * @param {HTMLElement} element
+	 * @return {Tweet|null}
+	 */
+	getTweetForElement(element) {
+		const id = element.getAttribute('data-tmlr-tweet-id');
+		const tweet = id ? this.getTweet(id) : undefined;
+		if (tweet && tweet.getElement() === element) {
+			return tweet;
+		}
+
+		if (!this.isCorrectPath()) {
+			return null;
+		}
+
+		return this.handleTweet(element);
 	}
 
 	/**
@@ -128,6 +181,7 @@ class TwitterMarkLastRead {
 	 * Do the thing.
 	 *
 	 * @param {HTMLElement} tweetElement
+	 * @return {Tweet}
 	 */
 	handleTweet(tweetElement) {
 		deb.debug('TwitterMarkLastRead::handleTweet', tweetElement);
@@ -149,6 +203,8 @@ class TwitterMarkLastRead {
 
 		deb.debug('TwitterMarkLastRead::handleTweet', 'addTweet');
 		this.addTweet(tweet);
+
+		return tweet;
 	}
 
 	/**

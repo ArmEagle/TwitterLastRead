@@ -3,6 +3,8 @@
 ## 2026-11-23 - version 1.9.0
 ### Fixed
 - Tweets already in the page on a hard page load are now handled too.
+- "Mark as Read" menu item now also shows for initially loaded Tweets. The "More" button click is now detected
+with a single delegated listener, since Twitter can replace the button element after the Tweet was handled.
 
 ## 2026-03-03 - version 1.8.1
 ### Changed
