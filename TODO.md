@@ -17,8 +17,5 @@ is marked as a last read.
     - Change `AddedNodesMutationObserver` to also have a callback for deleted nodes?
 - Marking an old tweet as read (with currently read tweets above it) does not unmark all tweets correctly.
     - Perhaps this is related to the above point. Though we can't get duplicate entries in the Tweets Map.
-- Detect Promoted tweets and ignore them (already some scaffolding in Tweet).
-    - Attribute can be used to hide them.
 - Detected Pinned Tweets and skip them (E:D).
-- Perhaps use `AwaitSelectorMatchObserver` for new Tweet elements?
 - Disable completely in tweet detail/threads as here there's no logical order. E.g. https://twitter.com/vogelinfo/status/1276146451974893569

@@ -3,6 +3,7 @@
 ## 2026-11-24 - version 1.9.1
 ### Changed
 - Promoted Tweets (ads) in the new UI are now shown as a block with diagonal stripes, instead of a black block.
+- Removed a few finished TODO points.
 
 ## 2026-11-24 - version 1.9.0
 ### Fixed
