@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name	Twitter - Mark Last Read
-// @version 1.8.1
+// @version 1.9.0
 // @grant   none
 // @include https://*twitter.com/*
 // @include https://*x.com/*
@@ -237,6 +237,16 @@ class ScrollToLastRead {
 class Tweet {
 
 	/**
+	 * Selector for the "More" menu button in a Tweet.
+	 * - UI up to about 2026-11-23: `<div role="button" aria-haspopup="menu" aria-label="More">`.
+	 * - UI from about 2026-11-23: `<button aria-haspopup="menu" aria-label="More">` (no role attribute).
+	 * @return {string}
+	 */
+	static get SELECTOR_MORE_MENU() {
+		return '[role="button"][aria-haspopup="menu"][aria-label="More"], button[aria-haspopup="menu"][aria-label="More"]';
+	}
+
+	/**
 	 * @param {TwitterMarkLastRead} tmlr
 	 * @param {HTMLElement} element Root tweet element.
 	 */
@@ -246,7 +256,7 @@ class Tweet {
 		this.tmlr = tmlr;
 		this.element = element;
 
-		this.selector_more_menu = '[role="button"][aria-haspopup="menu"][aria-label="More"]';
+		this.selector_more_menu = Tweet.SELECTOR_MORE_MENU;
 
 		this.key_tweet_markread_checked = 'data-tmlr-checked'; // Flag that marks that this tweet was checked.
 		this.tweet_handled_attribute = 'data-tmlr-handled'; // Flag that marks that this element has been handled.
@@ -290,27 +300,9 @@ class Tweet {
 	 */
 	addEventListeners() {
 		deb.debug('Tweet::addEventListeners');
-		// Listen to "more" menu dropdown opening.
-		// This menu is stored independently from the tweet.
-		// Pass 'active' tweet id to TMLR so it knows for which Tweet the menu was opened.
-		if (this.isNormal()) {
-			// Sometimes the element is loaded a bit later. Especially for the initially loaded Tweets.
-			// Adding a slight delay seems to help.
-			window.setTimeout(() => {
-				const dropdownHook = this.element.querySelector(this.selector_more_menu);
-				if (!dropdownHook) {
-					throw new TweetException('Could not find Tweet context menu dropdown hook.', {
-						tweet: this,
-						element: this.element,
-					});
-				} else {
-					dropdownHook.addEventListener('click', (event) => {
-						deb.debug('Tweet::popupHook', event, this.getId());
-						this.tmlr.setPopupActiveTweet(this);
-					});
-				}
-			}, 100);
-		} else {
+		// Opening of the "more" menu dropdown is detected with a delegated listener in
+		// `TwitterMarkLastRead::setupTweetMenuHook`, because Twitter can replace the button element.
+		if (!this.isNormal()) {
 			// Reset for other tweet types so we don't add the "Mark all Read" button elsewhere once this is set once.
 			this.tmlr.setPopupActiveTweet(null);
 		}
@@ -484,16 +476,15 @@ class Tweet {
 			return this.id;
 		}
 
-		const time_element = this.element.querySelector('time');
-		const time_link = time_element ? time_element.closest('a') : null;
-		if (!time_link) {
-			throw new TweetException('Time element not found', {
+		const href = this.getStatusHref();
+		if (!href) {
+			throw new TweetException('Tweet status link not found', {
 				tweet: this,
 			});
 		}
 
 		// Grab trailing long number
-		const tweet_id_matches = time_link.getAttribute('href').match(/\d+$/);
+		const tweet_id_matches = href.match(/\d+$/);
 		if (!tweet_id_matches || !tweet_id_matches.length) {
 			throw new TweetException('Tweet id not found', {
 				tweet: this,
@@ -504,6 +495,33 @@ class Tweet {
 		this.element.setAttribute(this.key_tweet_id, this.id.toString());
 
 		return this.id;
+	}
+
+	/**
+	 * Find the link (`/<user>/status/<id>`) to this Tweet.
+	 * @return {string|null}
+	 */
+	getStatusHref() {
+		// UI up to about 2026-11-23: link around the `time` element.
+		const time_element = this.element.querySelector('time');
+		const time_link = time_element ? time_element.closest('a') : null;
+		if (time_link && time_link.getAttribute('href')) {
+			return time_link.getAttribute('href');
+		}
+
+		// UI from about 2026-11-23: there is no `time` element. The wrapping `div[role="link"]` has the link in
+		// `data-href`. Also works for ads, which have no time link at all.
+		const wrapper = this.element.closest('[role="link"][data-href]');
+		const status_pattern = /^\/[^\/]+\/status\/\d+$/;
+		if (wrapper && status_pattern.test(wrapper.getAttribute('data-href'))) {
+			return wrapper.getAttribute('data-href');
+		}
+
+		// UI from about 2026-11-23, fallback: the first plain status link (the "1h" time link).
+		const status_link = Array.from(this.element.querySelectorAll('a[href*="/status/"]')).find(
+			(a) => status_pattern.test(a.getAttribute('href'))
+		);
+		return status_link ? status_link.getAttribute('href') : null;
 	}
 
 	/**
@@ -528,9 +546,33 @@ class Tweet {
 	isRetweetElement() {
 		deb.debug('Tweet::isRetweet');
 
-		// First `a span` can contain a span with the person retweeting and the text " Retweeted".
+		return this.isRetweetElementOldUI() || this.isRetweetElementNewUI();
+	}
+
+	/**
+	 * UI up to about 2026-11-23: first `a span` can contain a span with the person retweeting and the text " Retweeted".
+	 * @return {boolean}
+	 */
+	isRetweetElementOldUI() {
 		const span = this.element.querySelector('a span');
-		return span && span.textContent.indexOf(' Retweeted') > 0;
+		return !!span && span.textContent.indexOf(' Retweeted') > 0;
+	}
+
+	/**
+	 * UI from about 2026-11-23: the Tweet `article` directly contains a header ("<name> reposted", with a repost
+	 * icon) and the reposted `article`.
+	 * @return {boolean}
+	 */
+	isRetweetElementNewUI() {
+		if (!this.element.querySelector(':scope > article')) {
+			return false;
+		}
+
+		const header = this.element.querySelector(':scope > div');
+		return !!header && (
+			!!header.querySelector('svg[data-icon="icon-repost-fill"]')
+			|| / reposted$/.test(header.textContent.trim())
+		);
 	}
 
 	/**
@@ -540,10 +582,28 @@ class Tweet {
 	isPromotedElement() {
 		deb.debug('Tweet::isPromotedElement', this.element, this.element.innerHTML);
 
-		// Check for a span element containing "Promoted".
-		return Array.from(this.element.querySelectorAll('span')).filter(
+		return this.isPromotedElementOldUI() || this.isPromotedElementNewUI();
+	}
+
+	/**
+	 * UI up to about 2026-11-23: a span element containing only "Promoted".
+	 * @return {boolean}
+	 */
+	isPromotedElementOldUI() {
+		return Array.from(this.element.querySelectorAll('span')).some(
 			(span) => span.textContent.indexOf('Promoted') >= 0 && span.textContent.replace('Promoted', '').trim().length === 0
-		).length > 0;
+		);
+	}
+
+	/**
+	 * UI from about 2026-11-23: a link to the advertiser's profile (e.g. `/XBusiness`) containing only "Ad",
+	 * next to the "More" menu button.
+	 * @return {boolean}
+	 */
+	isPromotedElementNewUI() {
+		return Array.from(this.element.querySelectorAll('a')).some(
+			(a) => a.textContent.trim() === 'Ad' && /^\/[^\/]+$/.test(a.getAttribute('href') || '')
+		);
 	}
 
 	/**
@@ -742,6 +802,11 @@ class AddedNodesMutationObserver {
 		this.callback = callback;
 
 		this.rootNode = document.querySelector(this.rootSelector);
+		if (!this.rootNode) {
+			// Twitter changes its DOM regularly. Don't fail hard on `observe()`, but fall back to the body.
+			console.warn('AddedNodesMutationObserver: root "' + this.rootSelector + '" not found, falling back to body.');
+			this.rootNode = document.body;
+		}
 
 		// Options for addednodes
 		this.config = {
@@ -806,7 +871,8 @@ class AddedNodesMutationObserver {
 class AwaitSelectorMatchObserver {
 	/**
 	 * @param selector {string} for element to wait for.
-	 * @param callback {Function} Callback to call with selector element.
+	 * @param callback {Function} Callback to call with selector element. Receives this observer as second argument,
+	 *   so the callback can call `disconnect()` on it, also when it is called synchronously from this constructor.
 	 * @param rootSelector {string} (optional) Selector for root node to listen on. Defaults to document.body.
 	 */
 	constructor(selector, callback, rootSelector) {
@@ -814,16 +880,20 @@ class AwaitSelectorMatchObserver {
 
 		this.selector = selector;
 		this.callback = callback;
+		this.disconnected = false;
 
 		if (typeof rootSelector === 'undefined') {
 			rootSelector = 'body';
 		}
 
 		// Maybe it exists already.
-		let element = document.querySelector(rootSelector + ' ' + this.selector);
-		if (element) {
-			this.nodeAddedHandler(element);
+		const rootNode = document.querySelector(rootSelector);
+		if (rootNode) {
+			this.nodeAddedHandler(rootNode);
+		}
 
+		// The callback may have disconnected us already.
+		if (this.disconnected) {
 			return;
 		}
 
@@ -843,6 +913,9 @@ class AwaitSelectorMatchObserver {
 	nodeAddedHandler(addedElement) {
 		deb.debug('AwaitSelectorMatchObserver::nodeAddedHandler');
 
+        if (addedElement.nodeType !== Node.ELEMENT_NODE) {
+            return;
+        }
 
 		if (addedElement.matches(this.selector)) {
 			return this.callbackWrapper(addedElement);
@@ -863,14 +936,19 @@ class AwaitSelectorMatchObserver {
 	 * Wraps set callback function.
 	 */
 	callbackWrapper(element) {
+		if (this.disconnected) {
+			return;
+		}
+
 		deb.debug('AwaitSelectorMatchObserver::callbackWrapper', element);
-		this.callback(element);
+		this.callback(element, this);
 	}
 
 	/**
 	 * Stop observing.
 	 */
 	disconnect() {
+		this.disconnected = true;
 		if (typeof this.addedNodesMutationObserver !== 'undefined') {
 			this.addedNodesMutationObserver.disconnect();
 		}
@@ -1147,7 +1225,7 @@ class TwitterMarkLastRead {
 		/** @property {Tweet} Tweet the popup menu was last opened for. **/
 		this.popupActiveTweet;
 
-		this.mutationRootSelector = '#react-root';
+		this.mutationRootSelector = 'body';
 		this.timeline_container = document.querySelector('[aria-label="Timeline: Search timeline"]');
 
 		this.addStyling();
@@ -1168,7 +1246,75 @@ class TwitterMarkLastRead {
 		);
 		this.tweetAddedObserver.observe();
 
+		// Handle Tweets that were already in the page before the observer started (e.g. on a hard page load).
+		const root = document.querySelector(this.mutationRootSelector);
+		if (root) {
+			try {
+				this.handleAddedNode(root);
+			} catch (exception) {
+				exception instanceof TweetException
+					? console.error(exception.getDetails(), exception)
+					: console.error(exception);
+			}
+		}
+
+		this.setupTweetMenuHook();
 		this.tweetMenuHandler = new TweetMenu(this);
+	}
+
+	/**
+	 * Listen (delegated, capture phase) for clicks on the "More" menu button of any Tweet, so we know for which
+	 * Tweet the popup menu is opened.
+	 * Delegation is used because Twitter can replace the button element after the Tweet was handled (especially
+	 * on initial page load), which would lose a listener attached directly to the button.
+	 */
+	setupTweetMenuHook() {
+		// Also on `pointerdown`: the new UI (from about 2026-11-23) may open the menu on pointerdown, so before `click`.
+		const handler = (event) => {
+			if (!(event.target instanceof Element)) {
+				return;
+			}
+			const button = event.target.closest(Tweet.SELECTOR_MORE_MENU);
+			if (!button) {
+				return;
+			}
+			const article = this.getTweetRootElement(button);
+			if (!article) {
+				return;
+			}
+
+			try {
+				const tweet = this.getTweetForElement(article);
+				deb.debug('Tweet::popupHook', event, tweet);
+				this.setPopupActiveTweet(tweet && tweet.isNormal() ? tweet : null);
+			} catch (exception) {
+				this.setPopupActiveTweet(null);
+				exception instanceof TweetException
+					? console.error(exception.getDetails(), exception)
+					: console.error(exception);
+			}
+		};
+		document.addEventListener('pointerdown', handler, true);
+		document.addEventListener('click', handler, true);
+	}
+
+	/**
+	 * Return the Tweet object for a Tweet element. Handles the element first when it wasn't handled yet.
+	 * @param {HTMLElement} element
+	 * @return {Tweet|null}
+	 */
+	getTweetForElement(element) {
+		const id = element.getAttribute('data-tmlr-tweet-id');
+		const tweet = id ? this.getTweet(id) : undefined;
+		if (tweet && tweet.getElement() === element) {
+			return tweet;
+		}
+
+		if (!this.isCorrectPath()) {
+			return null;
+		}
+
+		return this.handleTweet(element);
 	}
 
 	/**
@@ -1204,18 +1350,39 @@ class TwitterMarkLastRead {
 	findTweetElements(element) {
 		deb.debug('TwitterMarkLastRead::findTweetElement', element);
 
-		if (element.tagName.toLowerCase() === 'article' && this.isExpectedToBeTweet(element)) {
-			return [element];
+		// Self or ancestor.
+		const tweet = this.getTweetRootElement(element);
+		if (tweet) {
+			return this.isExpectedToBeTweet(tweet) ? [tweet] : [];
 		}
 
-		let tweet = element.closest('article');
-		if (tweet && this.isExpectedToBeTweet(tweet)) {
-			return [tweet];
-		}
-
-		let tweets = element.querySelectorAll('article');
-		tweets = Array.from(tweets).filter((e) => this.isExpectedToBeTweet(e));
+		// Descendants. Only the outermost articles, a nested article is part of its outer Tweet.
+		const tweets = Array.from(element.querySelectorAll('article')).filter(
+			(e) => this.getTweetRootElement(e) === e && this.isExpectedToBeTweet(e)
+		);
 		return tweets;
+	}
+
+	/**
+	 * Return the root element of the Tweet the element is part of: the outermost `article`.
+	 * - UI up to about 2026-11-23: a Tweet is a single `article` (quoted Tweets are no `article`).
+	 * - UI from about 2026-11-23: a repost is an `article` containing a "… reposted" header and the reposted
+	 *   `article`. The outer one is the Tweet, so we don't handle the inner one separately.
+	 *
+	 * @param {HTMLElement} element
+	 * @return {HTMLElement|null}
+	 */
+	getTweetRootElement(element) {
+		let article = element.closest('article');
+		while (article && article.parentElement) {
+			const outer = article.parentElement.closest('article');
+			if (!outer) {
+				break;
+			}
+			article = outer;
+		}
+
+		return article;
 	}
 
 	/**
@@ -1240,6 +1407,7 @@ class TwitterMarkLastRead {
 	 * Do the thing.
 	 *
 	 * @param {HTMLElement} tweetElement
+	 * @return {Tweet}
 	 */
 	handleTweet(tweetElement) {
 		deb.debug('TwitterMarkLastRead::handleTweet', tweetElement);
@@ -1261,6 +1429,8 @@ class TwitterMarkLastRead {
 
 		deb.debug('TwitterMarkLastRead::handleTweet', 'addTweet');
 		this.addTweet(tweet);
+
+		return tweet;
 	}
 
 	/**
@@ -1314,8 +1484,20 @@ class TwitterMarkLastRead {
 			[data-tmlr-retweet] {
 				border-left: 3px solid #7c98ff;
 			}
-			[data-tmlr-promoted] {
-				height: 0;
+			/* UI up to about 2026-11-23: anything that isn't the new UI structure (see below). */
+			[data-tmlr-promoted]:not(div[role="link"][data-href] > article) {
+				display: none;
+			}
+			/*
+			 * UI from about 2026-11-23: the timeline is a virtualized list with absolute positioning, so the space
+			 * can't be removed. Show a black block instead, and don't let it be clicked.
+			 */
+			div[role="link"]:has(> article[data-tmlr-promoted]) {
+				background-color: #000;
+				pointer-events: none;
+			}
+			div[role="link"]:has(> article[data-tmlr-promoted]) > * {
+				visibility: hidden;
 			}
 			[data-tmlr-read][data-tmlr-retweet] {
 				border-left: 3px solid #7c98aa;
@@ -1507,10 +1689,70 @@ class SettingsUI {
 
 
 // Setup debug output with filter.
-const deb = new Debug(/Settings|ScrollToLastRead|Tweet::popupHook/);
+const deb = new Debug(/TwitterMarkLastRead::await|Settings|ScrollToLastRead/);
 //deb.enable(); //@debug
 //const deb = new Debug(/TwitterMarkLastRead::/);
 
+
+/**
+ * @return {HTMLElement|null} The current "Following" tab element.
+ */
+function findFollowingTab() {
+	return [... document.querySelectorAll('[role="tab"]')].find(
+		(tab) => tab.textContent.indexOf('Following') >= 0
+	) || null;
+}
+
+/**
+ * Make sure the "Following" tab is selected.
+ * Twitter sometimes opens on "For you", and the tab list can be re-rendered right after it appeared, which replaces
+ * the tab element and loses a click on the old element. So retry for a while, each time on the current tab element.
+ * Stops when the tab is selected, after a timeout, or as soon as the user selects a tab themselves.
+ */
+function ensureFollowingTabSelected() {
+	const interval = 250;
+	const timeout = 5000;
+	const started = Date.now();
+	let stopped = false;
+	let timer;
+
+	const stop = (reason) => {
+		deb.debug('TwitterMarkLastRead::await ensureFollowingTabSelected stop', reason);
+		stopped = true;
+		window.clearInterval(timer);
+		document.removeEventListener('pointerdown', onUserPointerDown, true);
+	};
+
+	// Don't fight the user when they pick a tab themselves.
+	const onUserPointerDown = (event) => {
+		if (event.isTrusted && event.target instanceof Element && event.target.closest('[role="tab"]')) {
+			stop('user selected a tab');
+		}
+	};
+	document.addEventListener('pointerdown', onUserPointerDown, true);
+
+	const check = () => {
+		const tab = findFollowingTab();
+		if (tab && tab.getAttribute('aria-selected') === 'true') {
+			stop('selected');
+			return;
+		}
+		if (Date.now() - started > timeout) {
+			stop('timeout');
+			return;
+		}
+		if (tab) {
+			deb.debug('TwitterMarkLastRead::await ensureFollowingTabSelected click', tab);
+			// A real MouseEvent (unlike `new Event('click')`), which the new UI's tab component also reacts to.
+			tab.click();
+		}
+	};
+
+	check();
+	if (!stopped) {
+		timer = window.setInterval(check, interval);
+	}
+}
 
 /*
  * We only want to load when the timeline is ordered on Following
@@ -1518,21 +1760,20 @@ const deb = new Debug(/Settings|ScrollToLastRead|Tweet::popupHook/);
  */
 let tmlr;
 const await_selector_tmlr = new AwaitSelectorMatchObserver(
-	'[role="navigation"] [role="presentation"]:nth-child(2) [role="tab"]',
-	(element) => {
+	'[role="navigation"] [role="presentation"]:nth-child(2) [role="tab"]' // UI up to about 2026-11-23
+    + ', [role="tablist"] [role="tab"]:nth-child(2)', // UI from about 2026-11-23
+	(element, observer) => {
+        deb.debug('TwitterMarkLastRead::await scan', element);
 		// Following is in a `span` element when not focused.
 		if ([... element.querySelectorAll('div,span')].filter((h) => {
 			return h.textContent.indexOf('Following') >= 0;
 		}).length > 0) {
-			await_selector_tmlr.disconnect();
+        	deb.debug('TwitterMarkLastRead::await found', element);
+			// Use the passed observer: `await_selector_tmlr` isn't assigned yet when this is called from its constructor.
+			observer.disconnect();
 
 			// Focus 'Following' when it doesn't have focus yet - stupid Twitter! (2025-12-15)
-			if (element.matches('[aria-selected="false"]')) {
-				element.dispatchEvent(new Event('click', {
-					bubbles: true,
-					detail: element,
-				}));
-			}
+			ensureFollowingTabSelected();
 
 			tmlr = new TwitterMarkLastRead();
 

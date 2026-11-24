@@ -14,6 +14,11 @@ class AddedNodesMutationObserver {
 		this.callback = callback;
 
 		this.rootNode = document.querySelector(this.rootSelector);
+		if (!this.rootNode) {
+			// Twitter changes its DOM regularly. Don't fail hard on `observe()`, but fall back to the body.
+			console.warn('AddedNodesMutationObserver: root "' + this.rootSelector + '" not found, falling back to body.');
+			this.rootNode = document.body;
+		}
 
 		// Options for addednodes
 		this.config = {

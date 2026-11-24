@@ -4,10 +4,13 @@
 class Tweet {
 
 	/**
-	 * @return {string} Selector for the "More" menu button in a Tweet.
+	 * Selector for the "More" menu button in a Tweet.
+	 * - UI up to about 2026-11-23: `<div role="button" aria-haspopup="menu" aria-label="More">`.
+	 * - UI from about 2026-11-23: `<button aria-haspopup="menu" aria-label="More">` (no role attribute).
+	 * @return {string}
 	 */
 	static get SELECTOR_MORE_MENU() {
-		return '[role="button"][aria-haspopup="menu"][aria-label="More"]';
+		return '[role="button"][aria-haspopup="menu"][aria-label="More"], button[aria-haspopup="menu"][aria-label="More"]';
 	}
 
 	/**
@@ -240,16 +243,15 @@ class Tweet {
 			return this.id;
 		}
 
-		const time_element = this.element.querySelector('time');
-		const time_link = time_element ? time_element.closest('a') : null;
-		if (!time_link) {
-			throw new TweetException('Time element not found', {
+		const href = this.getStatusHref();
+		if (!href) {
+			throw new TweetException('Tweet status link not found', {
 				tweet: this,
 			});
 		}
 
 		// Grab trailing long number
-		const tweet_id_matches = time_link.getAttribute('href').match(/\d+$/);
+		const tweet_id_matches = href.match(/\d+$/);
 		if (!tweet_id_matches || !tweet_id_matches.length) {
 			throw new TweetException('Tweet id not found', {
 				tweet: this,
@@ -260,6 +262,33 @@ class Tweet {
 		this.element.setAttribute(this.key_tweet_id, this.id.toString());
 
 		return this.id;
+	}
+
+	/**
+	 * Find the link (`/<user>/status/<id>`) to this Tweet.
+	 * @return {string|null}
+	 */
+	getStatusHref() {
+		// UI up to about 2026-11-23: link around the `time` element.
+		const time_element = this.element.querySelector('time');
+		const time_link = time_element ? time_element.closest('a') : null;
+		if (time_link && time_link.getAttribute('href')) {
+			return time_link.getAttribute('href');
+		}
+
+		// UI from about 2026-11-23: there is no `time` element. The wrapping `div[role="link"]` has the link in
+		// `data-href`. Also works for ads, which have no time link at all.
+		const wrapper = this.element.closest('[role="link"][data-href]');
+		const status_pattern = /^\/[^\/]+\/status\/\d+$/;
+		if (wrapper && status_pattern.test(wrapper.getAttribute('data-href'))) {
+			return wrapper.getAttribute('data-href');
+		}
+
+		// UI from about 2026-11-23, fallback: the first plain status link (the "1h" time link).
+		const status_link = Array.from(this.element.querySelectorAll('a[href*="/status/"]')).find(
+			(a) => status_pattern.test(a.getAttribute('href'))
+		);
+		return status_link ? status_link.getAttribute('href') : null;
 	}
 
 	/**
@@ -284,9 +313,33 @@ class Tweet {
 	isRetweetElement() {
 		deb.debug('Tweet::isRetweet');
 
-		// First `a span` can contain a span with the person retweeting and the text " Retweeted".
+		return this.isRetweetElementOldUI() || this.isRetweetElementNewUI();
+	}
+
+	/**
+	 * UI up to about 2026-11-23: first `a span` can contain a span with the person retweeting and the text " Retweeted".
+	 * @return {boolean}
+	 */
+	isRetweetElementOldUI() {
 		const span = this.element.querySelector('a span');
-		return span && span.textContent.indexOf(' Retweeted') > 0;
+		return !!span && span.textContent.indexOf(' Retweeted') > 0;
+	}
+
+	/**
+	 * UI from about 2026-11-23: the Tweet `article` directly contains a header ("<name> reposted", with a repost
+	 * icon) and the reposted `article`.
+	 * @return {boolean}
+	 */
+	isRetweetElementNewUI() {
+		if (!this.element.querySelector(':scope > article')) {
+			return false;
+		}
+
+		const header = this.element.querySelector(':scope > div');
+		return !!header && (
+			!!header.querySelector('svg[data-icon="icon-repost-fill"]')
+			|| / reposted$/.test(header.textContent.trim())
+		);
 	}
 
 	/**
@@ -296,10 +349,28 @@ class Tweet {
 	isPromotedElement() {
 		deb.debug('Tweet::isPromotedElement', this.element, this.element.innerHTML);
 
-		// Check for a span element containing "Promoted".
-		return Array.from(this.element.querySelectorAll('span')).filter(
+		return this.isPromotedElementOldUI() || this.isPromotedElementNewUI();
+	}
+
+	/**
+	 * UI up to about 2026-11-23: a span element containing only "Promoted".
+	 * @return {boolean}
+	 */
+	isPromotedElementOldUI() {
+		return Array.from(this.element.querySelectorAll('span')).some(
 			(span) => span.textContent.indexOf('Promoted') >= 0 && span.textContent.replace('Promoted', '').trim().length === 0
-		).length > 0;
+		);
+	}
+
+	/**
+	 * UI from about 2026-11-23: a link to the advertiser's profile (e.g. `/XBusiness`) containing only "Ad",
+	 * next to the "More" menu button.
+	 * @return {boolean}
+	 */
+	isPromotedElementNewUI() {
+		return Array.from(this.element.querySelectorAll('a')).some(
+			(a) => a.textContent.trim() === 'Ad' && /^\/[^\/]+$/.test(a.getAttribute('href') || '')
+		);
 	}
 
 	/**

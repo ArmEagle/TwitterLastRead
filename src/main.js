@@ -23,7 +23,7 @@ class TwitterMarkLastRead {
 		/** @property {Tweet} Tweet the popup menu was last opened for. **/
 		this.popupActiveTweet;
 
-		this.mutationRootSelector = '#react-root';
+		this.mutationRootSelector = 'body';
 		this.timeline_container = document.querySelector('[aria-label="Timeline: Search timeline"]');
 
 		this.addStyling();
@@ -67,7 +67,8 @@ class TwitterMarkLastRead {
 	 * on initial page load), which would lose a listener attached directly to the button.
 	 */
 	setupTweetMenuHook() {
-		document.addEventListener('click', (event) => {
+		// Also on `pointerdown`: the new UI (from about 2026-11-23) may open the menu on pointerdown, so before `click`.
+		const handler = (event) => {
 			if (!(event.target instanceof Element)) {
 				return;
 			}
@@ -75,7 +76,7 @@ class TwitterMarkLastRead {
 			if (!button) {
 				return;
 			}
-			const article = button.closest('article');
+			const article = this.getTweetRootElement(button);
 			if (!article) {
 				return;
 			}
@@ -90,7 +91,9 @@ class TwitterMarkLastRead {
 					? console.error(exception.getDetails(), exception)
 					: console.error(exception);
 			}
-		}, true);
+		};
+		document.addEventListener('pointerdown', handler, true);
+		document.addEventListener('click', handler, true);
 	}
 
 	/**
@@ -145,18 +148,39 @@ class TwitterMarkLastRead {
 	findTweetElements(element) {
 		deb.debug('TwitterMarkLastRead::findTweetElement', element);
 
-		if (element.tagName.toLowerCase() === 'article' && this.isExpectedToBeTweet(element)) {
-			return [element];
+		// Self or ancestor.
+		const tweet = this.getTweetRootElement(element);
+		if (tweet) {
+			return this.isExpectedToBeTweet(tweet) ? [tweet] : [];
 		}
 
-		let tweet = element.closest('article');
-		if (tweet && this.isExpectedToBeTweet(tweet)) {
-			return [tweet];
-		}
-
-		let tweets = element.querySelectorAll('article');
-		tweets = Array.from(tweets).filter((e) => this.isExpectedToBeTweet(e));
+		// Descendants. Only the outermost articles, a nested article is part of its outer Tweet.
+		const tweets = Array.from(element.querySelectorAll('article')).filter(
+			(e) => this.getTweetRootElement(e) === e && this.isExpectedToBeTweet(e)
+		);
 		return tweets;
+	}
+
+	/**
+	 * Return the root element of the Tweet the element is part of: the outermost `article`.
+	 * - UI up to about 2026-11-23: a Tweet is a single `article` (quoted Tweets are no `article`).
+	 * - UI from about 2026-11-23: a repost is an `article` containing a "… reposted" header and the reposted
+	 *   `article`. The outer one is the Tweet, so we don't handle the inner one separately.
+	 *
+	 * @param {HTMLElement} element
+	 * @return {HTMLElement|null}
+	 */
+	getTweetRootElement(element) {
+		let article = element.closest('article');
+		while (article && article.parentElement) {
+			const outer = article.parentElement.closest('article');
+			if (!outer) {
+				break;
+			}
+			article = outer;
+		}
+
+		return article;
 	}
 
 	/**
@@ -258,8 +282,20 @@ class TwitterMarkLastRead {
 			[data-tmlr-retweet] {
 				border-left: 3px solid #7c98ff;
 			}
-			[data-tmlr-promoted] {
-				height: 0;
+			/* UI up to about 2026-11-23: anything that isn't the new UI structure (see below). */
+			[data-tmlr-promoted]:not(div[role="link"][data-href] > article) {
+				display: none;
+			}
+			/*
+			 * UI from about 2026-11-23: the timeline is a virtualized list with absolute positioning, so the space
+			 * can't be removed. Show a black block instead, and don't let it be clicked.
+			 */
+			div[role="link"]:has(> article[data-tmlr-promoted]) {
+				background-color: #000;
+				pointer-events: none;
+			}
+			div[role="link"]:has(> article[data-tmlr-promoted]) > * {
+				visibility: hidden;
 			}
 			[data-tmlr-read][data-tmlr-retweet] {
 				border-left: 3px solid #7c98aa;
@@ -522,7 +558,8 @@ function ensureFollowingTabSelected() {
  */
 let tmlr;
 const await_selector_tmlr = new AwaitSelectorMatchObserver(
-	'[role="navigation"] [role="presentation"]:nth-child(2) [role="tab"]',
+	'[role="navigation"] [role="presentation"]:nth-child(2) [role="tab"]' // UI up to about 2026-11-23
+    + ', [role="tablist"] [role="tab"]:nth-child(2)', // UI from about 2026-11-23
 	(element, observer) => {
         deb.debug('TwitterMarkLastRead::await scan', element);
 		// Following is in a `span` element when not focused.
