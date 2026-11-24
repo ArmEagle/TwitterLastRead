@@ -451,10 +451,70 @@ class SettingsUI {
 
 
 // Setup debug output with filter.
-const deb = new Debug(/Settings|ScrollToLastRead|Tweet::popupHook/);
+const deb = new Debug(/TwitterMarkLastRead::await|Settings|ScrollToLastRead/);
 //deb.enable(); //@debug
 //const deb = new Debug(/TwitterMarkLastRead::/);
 
+
+/**
+ * @return {HTMLElement|null} The current "Following" tab element.
+ */
+function findFollowingTab() {
+	return [... document.querySelectorAll('[role="tab"]')].find(
+		(tab) => tab.textContent.indexOf('Following') >= 0
+	) || null;
+}
+
+/**
+ * Make sure the "Following" tab is selected.
+ * Twitter sometimes opens on "For you", and the tab list can be re-rendered right after it appeared, which replaces
+ * the tab element and loses a click on the old element. So retry for a while, each time on the current tab element.
+ * Stops when the tab is selected, after a timeout, or as soon as the user selects a tab themselves.
+ */
+function ensureFollowingTabSelected() {
+	const interval = 250;
+	const timeout = 5000;
+	const started = Date.now();
+	let stopped = false;
+	let timer;
+
+	const stop = (reason) => {
+		deb.debug('TwitterMarkLastRead::await ensureFollowingTabSelected stop', reason);
+		stopped = true;
+		window.clearInterval(timer);
+		document.removeEventListener('pointerdown', onUserPointerDown, true);
+	};
+
+	// Don't fight the user when they pick a tab themselves.
+	const onUserPointerDown = (event) => {
+		if (event.isTrusted && event.target instanceof Element && event.target.closest('[role="tab"]')) {
+			stop('user selected a tab');
+		}
+	};
+	document.addEventListener('pointerdown', onUserPointerDown, true);
+
+	const check = () => {
+		const tab = findFollowingTab();
+		if (tab && tab.getAttribute('aria-selected') === 'true') {
+			stop('selected');
+			return;
+		}
+		if (Date.now() - started > timeout) {
+			stop('timeout');
+			return;
+		}
+		if (tab) {
+			deb.debug('TwitterMarkLastRead::await ensureFollowingTabSelected click', tab);
+			// A real MouseEvent (unlike `new Event('click')`), which the new UI's tab component also reacts to.
+			tab.click();
+		}
+	};
+
+	check();
+	if (!stopped) {
+		timer = window.setInterval(check, interval);
+	}
+}
 
 /*
  * We only want to load when the timeline is ordered on Following
@@ -463,20 +523,18 @@ const deb = new Debug(/Settings|ScrollToLastRead|Tweet::popupHook/);
 let tmlr;
 const await_selector_tmlr = new AwaitSelectorMatchObserver(
 	'[role="navigation"] [role="presentation"]:nth-child(2) [role="tab"]',
-	(element) => {
+	(element, observer) => {
+        deb.debug('TwitterMarkLastRead::await scan', element);
 		// Following is in a `span` element when not focused.
 		if ([... element.querySelectorAll('div,span')].filter((h) => {
 			return h.textContent.indexOf('Following') >= 0;
 		}).length > 0) {
-			await_selector_tmlr.disconnect();
+        	deb.debug('TwitterMarkLastRead::await found', element);
+			// Use the passed observer: `await_selector_tmlr` isn't assigned yet when this is called from its constructor.
+			observer.disconnect();
 
 			// Focus 'Following' when it doesn't have focus yet - stupid Twitter! (2025-12-15)
-			if (element.matches('[aria-selected="false"]')) {
-				element.dispatchEvent(new Event('click', {
-					bubbles: true,
-					detail: element,
-				}));
-			}
+			ensureFollowingTabSelected();
 
 			tmlr = new TwitterMarkLastRead();
 

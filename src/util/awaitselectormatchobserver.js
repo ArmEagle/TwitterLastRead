@@ -4,7 +4,8 @@
 class AwaitSelectorMatchObserver {
 	/**
 	 * @param selector {string} for element to wait for.
-	 * @param callback {Function} Callback to call with selector element.
+	 * @param callback {Function} Callback to call with selector element. Receives this observer as second argument,
+	 *   so the callback can call `disconnect()` on it, also when it is called synchronously from this constructor.
 	 * @param rootSelector {string} (optional) Selector for root node to listen on. Defaults to document.body.
 	 */
 	constructor(selector, callback, rootSelector) {
@@ -12,16 +13,20 @@ class AwaitSelectorMatchObserver {
 
 		this.selector = selector;
 		this.callback = callback;
+		this.disconnected = false;
 
 		if (typeof rootSelector === 'undefined') {
 			rootSelector = 'body';
 		}
 
 		// Maybe it exists already.
-		let element = document.querySelector(rootSelector + ' ' + this.selector);
-		if (element) {
-			this.nodeAddedHandler(element);
+		const rootNode = document.querySelector(rootSelector);
+		if (rootNode) {
+			this.nodeAddedHandler(rootNode);
+		}
 
+		// The callback may have disconnected us already.
+		if (this.disconnected) {
 			return;
 		}
 
@@ -41,6 +46,9 @@ class AwaitSelectorMatchObserver {
 	nodeAddedHandler(addedElement) {
 		deb.debug('AwaitSelectorMatchObserver::nodeAddedHandler');
 
+        if (addedElement.nodeType !== Node.ELEMENT_NODE) {
+            return;
+        }
 
 		if (addedElement.matches(this.selector)) {
 			return this.callbackWrapper(addedElement);
@@ -61,14 +69,19 @@ class AwaitSelectorMatchObserver {
 	 * Wraps set callback function.
 	 */
 	callbackWrapper(element) {
+		if (this.disconnected) {
+			return;
+		}
+
 		deb.debug('AwaitSelectorMatchObserver::callbackWrapper', element);
-		this.callback(element);
+		this.callback(element, this);
 	}
 
 	/**
 	 * Stop observing.
 	 */
 	disconnect() {
+		this.disconnected = true;
 		if (typeof this.addedNodesMutationObserver !== 'undefined') {
 			this.addedNodesMutationObserver.disconnect();
 		}
