@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-23 - version 1.9.0
+### Fixed
+- Tweets already in the page on a hard page load are now handled too.
+
 ## 2026-03-03 - version 1.8.1
 ### Changed
 - Updated the "Following" tab selector to make the script work, yet, again. Fixing issue #10.

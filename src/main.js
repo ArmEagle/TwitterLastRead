@@ -44,6 +44,18 @@ class TwitterMarkLastRead {
 		);
 		this.tweetAddedObserver.observe();
 
+		// Handle Tweets that were already in the page before the observer started (e.g. on a hard page load).
+		const root = document.querySelector(this.mutationRootSelector);
+		if (root) {
+			try {
+				this.handleAddedNode(root);
+			} catch (exception) {
+				exception instanceof TweetException
+					? console.error(exception.getDetails(), exception)
+					: console.error(exception);
+			}
+		}
+
 		this.tweetMenuHandler = new TweetMenu(this);
 	}
 
